@@ -1,38 +1,22 @@
 #include "settings_store.h"
+
 #include "unikey_config.h"
 
-void SettingsStore::setInputMethod(const std::string &value)
+void SettingsStore::setString(const std::string &key, const std::string &value)
 {
-    ibus_unikey_config_set_string(CONFIG_INPUTMETHOD, value.c_str());
+    ibus_unikey_config_set_string(key.c_str(), value.c_str());
 }
 
-std::string SettingsStore::getInputMethod() const
+bool SettingsStore::getString(const std::string &key, std::string &out) const
 {
-    gchar *value = nullptr;
-    if (ibus_unikey_config_get_string(CONFIG_INPUTMETHOD, &value))
+    gchar *value = NULL;
+    if (ibus_unikey_config_get_string(key.c_str(), &value))
     {
-        std::string out(value);
+        out = value;
         g_free(value);
-        return out;
+        return true;
     }
-    return std::string();
-}
-
-void SettingsStore::setOutputCharset(const std::string &value)
-{
-    ibus_unikey_config_set_string(CONFIG_OUTPUTCHARSET, value.c_str());
-}
-
-std::string SettingsStore::getOutputCharset() const
-{
-    gchar *value = nullptr;
-    if (ibus_unikey_config_get_string(CONFIG_OUTPUTCHARSET, &value))
-    {
-        std::string out(value);
-        g_free(value);
-        return out;
-    }
-    return std::string();
+    return false;
 }
 
 void SettingsStore::setBoolean(const std::string &key, bool value)
@@ -42,27 +26,10 @@ void SettingsStore::setBoolean(const std::string &key, bool value)
 
 bool SettingsStore::getBoolean(const std::string &key, bool &out) const
 {
-    gboolean b;
-    if (ibus_unikey_config_get_boolean(key.c_str(), &b))
+    gboolean value;
+    if (ibus_unikey_config_get_boolean(key.c_str(), &value))
     {
-        out = (b != FALSE);
-        return true;
-    }
-    return false;
-}
-
-void SettingsStore::setString(const std::string &key, const std::string &value)
-{
-    ibus_unikey_config_set_string(key.c_str(), value.c_str());
-}
-
-bool SettingsStore::getString(const std::string &key, std::string &out) const
-{
-    gchar* s = nullptr;
-    if (ibus_unikey_config_get_string(key.c_str(), &s))
-    {
-        out = s;
-        g_free(s);
+        out = value;
         return true;
     }
     return false;

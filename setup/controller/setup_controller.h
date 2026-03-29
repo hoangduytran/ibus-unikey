@@ -2,10 +2,9 @@
 #define SETUP_CONTROLLER_H
 
 #include <gtk/gtk.h>
-#include <string>
 
-#include "../ui/setup_view.h"
-#include "../config/settings_store.h"
+#include "ui/setup_view.h"
+#include "config/settings_store.h"
 
 class SetupController {
 public:
@@ -22,7 +21,8 @@ public:
 
     void handleInputMethodChanged(GtkComboBox* cbb);
     void handleOutputCharsetChanged(GtkComboBox* cbb);
-    void handleComboBoxRealize(GtkComboBox* cbb, const std::string& key);
+    void handleInputMethodRealize(GtkComboBox* cbb);
+    void handleOutputCharsetRealize(GtkComboBox* cbb);
 
     void handleMacroEdit();
     gboolean handleMacroDialogDelete();

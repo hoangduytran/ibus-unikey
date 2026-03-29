@@ -1,14 +1,24 @@
 #include "setup_controller.h"
-#include "mactab.h"
-#include "macro_utils.h"
-#include "unikey_config.h"
-#include <libintl.h>
+
+#include <cstring>
 #include <gdk/gdkkeysyms.h>
+#include <libintl.h>
+
+#include "macro_utils.h"
+#include "mactab.h"
+#include "unikey_config.h"
 
 static SetupController* s_global_controller = nullptr;
 
-SetupController* global_setup_controller() { return s_global_controller; }
-void global_setup_controller_set(SetupController* c) { s_global_controller = c; }
+SetupController* global_setup_controller()
+{
+    return s_global_controller;
+}
+
+void global_setup_controller_set(SetupController* c)
+{
+    s_global_controller = c;
+}
 
 #define _(str) gettext(str)
 
@@ -19,105 +29,125 @@ SetupController::SetupController(SetupView& view, SettingsStore& store)
 
 void SetupController::init()
 {
-    // Nothing to do beyond view init in this minimal refactor.
 }
-
-void SetupController::handleMainWindowDestroy() { gtk_main_quit(); }
 
 gboolean SetupController::handleMainWindowKeyPress(GtkWidget *widget, GdkEventKey *event)
 {
     if (event->keyval == GDK_KEY_Escape) {
         gtk_main_quit();
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
-void SetupController::handleBtnClose() { gtk_main_quit(); }
+void SetupController::handleMainWindowDestroy()
+{
+    gtk_main_quit();
+}
+
+void SetupController::handleBtnClose()
+{
+    gtk_main_quit();
+}
 
 void SetupController::cbbConfigUpdate(GtkComboBox* cbb, const char* key)
 {
     GValue val = {0};
     GtkTreeIter iter;
-    GtkTreeModel* model = gtk_combo_box_get_model(cbb);
+    GtkTreeModel* model;
 
-    if (!gtk_combo_box_get_active_iter(cbb, &iter))
-        return;
-
+    model = gtk_combo_box_get_model(cbb);
+    gtk_combo_box_get_active_iter(cbb, &iter);
     gtk_tree_model_get_value(model, &iter, 0, &val);
-    m_store.setString(key, g_value_get_string(&val));
+
+    ibus_unikey_config_set_string(key, g_value_get_string(&val));
+
     g_value_unset(&val);
 }
 
-void SetupController::handleInputMethodChanged(GtkComboBox* cbb) { cbbConfigUpdate(cbb, CONFIG_INPUTMETHOD); }
-void SetupController::handleOutputCharsetChanged(GtkComboBox* cbb) { cbbConfigUpdate(cbb, CONFIG_OUTPUTCHARSET); }
+void SetupController::handleInputMethodChanged(GtkComboBox* cbb)
+{
+    cbbConfigUpdate(cbb, CONFIG_INPUTMETHOD);
+}
+
+void SetupController::handleOutputCharsetChanged(GtkComboBox* cbb)
+{
+    cbbConfigUpdate(cbb, CONFIG_OUTPUTCHARSET);
+}
+
+void SetupController::handleInputMethodRealize(GtkComboBox* cbb)
+{
+    cbbConfigSetActive(cbb, CONFIG_INPUTMETHOD);
+}
+
+void SetupController::handleOutputCharsetRealize(GtkComboBox* cbb)
+{
+    cbbConfigSetActive(cbb, CONFIG_OUTPUTCHARSET);
+}
 
 void SetupController::cbbConfigSetActive(GtkComboBox* cbb, const char* key)
 {
-    std::string im = (key == CONFIG_INPUTMETHOD ? m_store.getInputMethod() : m_store.getOutputCharset());
-    if (im.empty())
-        return;
-
     GValue val = {0};
     GtkTreeIter iter;
-    GtkTreeModel* model = gtk_combo_box_get_model(cbb);
-    if (!gtk_tree_model_get_iter_first(model, &iter))
-        return;
+    GtkTreeModel* model;
 
-    do {
+    gchar *im;
+    if (!ibus_unikey_config_get_string(key, &im))
+    {
+        return;
+    }
+
+    model = gtk_combo_box_get_model(cbb);
+    gtk_tree_model_get_iter_first(model, &iter);
+    do
+    {
         gtk_tree_model_get_value(model, &iter, 0, &val);
-        const gchar* item = g_value_get_string(&val);
-        if (item && im == item) {
+        if (strcmp(im, g_value_get_string(&val)) == 0)
+        {
             gtk_combo_box_set_active_iter(cbb, &iter);
             g_value_unset(&val);
-            return;
+            break;
         }
         g_value_unset(&val);
     } while (gtk_tree_model_iter_next(model, &iter));
-}
 
-void SetupController::handleComboBoxRealize(GtkComboBox* cbb, const std::string& key)
-{
-    cbbConfigSetActive(cbb, key.c_str());
+    g_free(im);
 }
 
 void SetupController::handleSettingToggled(GtkToggleButton* btn)
 {
-    const gchar* name = gtk_widget_get_name(GTK_WIDGET(btn));
-    if (!name || strncmp(name, "cfg_", 4) != 0)
-        return;
+    const gchar* key = gtk_widget_get_name(GTK_WIDGET(btn));
+    key = key + 4; // skip "cfg_"
 
-    gchar *key = g_strdup(name + 4);
     gboolean b = gtk_toggle_button_get_active(btn);
-    m_store.setBoolean(key, b);
-    g_free(key);
+    ibus_unikey_config_set_boolean(key, b);
 }
 
 void SetupController::handleSettingRealize(GtkToggleButton* btn)
 {
-    const gchar* name = gtk_widget_get_name(GTK_WIDGET(btn));
-    if (!name || strncmp(name, "cfg_", 4) != 0)
-        return;
+    const gchar* key = gtk_widget_get_name(GTK_WIDGET(btn));
+    key = key + 4; // skip "cfg_"
 
-    gchar *key = g_strdup(name + 4);
-    bool value;
-    if (m_store.getBoolean(key, value))
-        gtk_toggle_button_set_active(btn, value);
-    g_free(key);
+    gboolean b;
+    if (ibus_unikey_config_get_boolean(key, &b))
+    {
+        gtk_toggle_button_set_active(btn, b);
+    }
 }
 
 void SetupController::handleMacroEdit()
 {
     gchar* macrofile = get_macro_file();
-    CMacroTable macro;
 
+    CMacroTable macro;
     macro.init();
     macro.loadFromFile(macrofile);
 
     auto store = GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
     unikey_macro_to_store(&macro, store);
 
-    m_view.showMacroDialog();
+    gtk_widget_show_all(m_view.getMacroDialog());
+    gtk_window_present(GTK_WINDOW(m_view.getMacroDialog()));
 
     int ret = gtk_dialog_run(GTK_DIALOG(m_view.getMacroDialog()));
     if (ret == GTK_RESPONSE_OK)
@@ -125,7 +155,7 @@ void SetupController::handleMacroEdit()
         unikey_store_to_macro(store, &macro);
 
         GFile* f = g_file_get_parent(g_file_new_for_path(macrofile));
-        if (!g_file_query_exists(f, NULL))
+        if (g_file_query_exists(f, NULL) == FALSE)
         {
             g_file_make_directory_with_parents(f, NULL, NULL);
         }
@@ -139,13 +169,18 @@ void SetupController::handleMacroEdit()
 
 gboolean SetupController::handleMacroDialogDelete()
 {
-    m_view.hideMacroDialog();
-    return TRUE;
+    gtk_widget_hide(m_view.getMacroDialog());
+    return true;
 }
 
-void SetupController::handleMacroDialogHide() { m_view.hideMacroDialog(); }
+void SetupController::handleMacroDialogHide()
+{
+    gtk_widget_hide(m_view.getMacroDialog());
+}
 
-void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext, const gchar *string_path, const gchar *newkey)
+void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext,
+                    const gchar *string_path,
+                    const gchar *newkey)
 {
     GtkTreeIter iter;
     gchar *oldkey;
@@ -153,10 +188,11 @@ void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext, const g
 
     auto model = gtk_tree_view_get_model(m_view.getMacroTree());
 
-    strncpy(nkey, newkey, MAX_MACRO_KEY_LEN - 1);
-    nkey[MAX_MACRO_KEY_LEN - 1] = '\0';
+    strncpy(nkey, newkey, MAX_MACRO_KEY_LEN-1);
+    nkey[MAX_MACRO_KEY_LEN-1] = '\0';
 
-    if (strcmp(nkey, STR_NULL_ITEM) == 0 || (strlen(STR_NULL_ITEM) != 0 && strlen(nkey) == 0))
+    if (strcmp(nkey, STR_NULL_ITEM) == 0
+        || (strlen(STR_NULL_ITEM) != 0 && strlen(nkey) == 0))
         return;
 
     if (list_store_check_exists(GTK_LIST_STORE(model), nkey))
@@ -173,7 +209,9 @@ void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext, const g
     list_store_add_null_item(GTK_LIST_STORE(model));
 }
 
-void SetupController::handleCellValueEdited(GtkCellRendererText *celltext, const gchar *string_path, const gchar *newvalue)
+void SetupController::handleCellValueEdited(GtkCellRendererText *celltext,
+                     const gchar *string_path,
+                     const gchar *newvalue)
 {
     GtkTreeIter iter;
     gchar *key;
@@ -183,8 +221,8 @@ void SetupController::handleCellValueEdited(GtkCellRendererText *celltext, const
     gtk_tree_model_get_iter_from_string(model, &iter, string_path);
     gtk_tree_model_get(model, &iter, COL_KEY, &key, -1);
 
-    strncpy(value, newvalue, MAX_MACRO_TEXT_LEN - 1);
-    value[MAX_MACRO_TEXT_LEN - 1] = '\0';
+    strncpy(value, newvalue, MAX_MACRO_TEXT_LEN-1);
+    value[MAX_MACRO_TEXT_LEN-1] = '\0';
 
     if (strcmp(key, STR_NULL_ITEM) != 0)
     {
@@ -206,7 +244,7 @@ void SetupController::handleMacroDel()
         {
             gtk_list_store_remove(store, &iter);
         }
-        gtk_tree_selection_select_iter(select, &iter);
+        gtk_tree_selection_select_iter(select, &iter); // select current index
         g_free(key);
     }
 }
@@ -219,15 +257,13 @@ void SetupController::handleMacroClear()
 
     auto select = gtk_tree_view_get_selection(m_view.getMacroTree());
     GtkTreeIter iter;
-    if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter))
-    {
-        gtk_tree_selection_select_iter(select, &iter);
-    }
+    gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
+    gtk_tree_selection_select_iter(select, &iter);
 }
 
 void SetupController::handleMacroImport()
 {
-    GtkWidget *file = gtk_file_chooser_dialog_new(_("Import macro"),
+    auto file = gtk_file_chooser_dialog_new(_("Import macro"),
                                        GTK_WINDOW(m_view.getMacroDialog()),
                                        GTK_FILE_CHOOSER_ACTION_OPEN,
                                        dgettext("gtk30", "_Cancel"), GTK_RESPONSE_CANCEL,
@@ -236,7 +272,8 @@ void SetupController::handleMacroImport()
 
     if (gtk_dialog_run(GTK_DIALOG(file)) == GTK_RESPONSE_OK)
     {
-        gchar* fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
+
+        auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
         CMacroTable macro;
         macro.init();
         macro.loadFromFile(fn);
@@ -245,16 +282,17 @@ void SetupController::handleMacroImport()
         auto store = GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
 
         GtkTreeIter iter;
-        auto n = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(store), NULL);
-        gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(store), &iter, NULL, n - 1);
-        gtk_list_store_remove(store, &iter);
+        auto n = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(store), NULL);     // get number of iter
+        gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(store), &iter, NULL, n-1); // get last iter
+        gtk_list_store_remove(store, &iter); // remove last iter (...)
 
         list_store_append(store, &macro);
-        list_store_add_null_item(store);
+        list_store_add_null_item(store); // add iter (...)
 
+        // select first iter
         auto select = gtk_tree_view_get_selection(m_view.getMacroTree());
-        if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter))
-            gtk_tree_selection_select_iter(select, &iter);
+        gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
+        gtk_tree_selection_select_iter(select, &iter);
     }
 
     gtk_widget_destroy(file);
@@ -262,7 +300,7 @@ void SetupController::handleMacroImport()
 
 void SetupController::handleMacroExport()
 {
-    GtkWidget *file = gtk_file_chooser_dialog_new(_("Export macro"),
+    auto file = gtk_file_chooser_dialog_new(_("Export macro"),
                                        GTK_WINDOW(m_view.getMacroDialog()),
                                        GTK_FILE_CHOOSER_ACTION_SAVE,
                                        dgettext("gtk30", "_Cancel"), GTK_RESPONSE_CANCEL,
@@ -275,8 +313,9 @@ void SetupController::handleMacroExport()
         macro.init();
 
         auto model = GTK_TREE_MODEL(gtk_tree_view_get_model(m_view.getMacroTree()));
+
         GtkTreeIter iter;
-        gchar *key, *value;
+        gchar* key, *value;
         gboolean b = gtk_tree_model_get_iter_first(model, &iter);
         while (b == TRUE)
         {
@@ -290,7 +329,7 @@ void SetupController::handleMacroExport()
             b = gtk_tree_model_iter_next(model, &iter);
         }
 
-        gchar* fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
+        auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
         macro.writeToFile(fn);
         g_free(fn);
     }

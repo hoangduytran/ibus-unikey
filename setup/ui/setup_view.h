@@ -2,12 +2,10 @@
 #define SETUP_VIEW_H
 
 #include <gtk/gtk.h>
-#include <string>
 
 class SetupView {
 public:
     SetupView() = default;
-    ~SetupView();
 
     void init();
     void showMainWindow();
@@ -19,9 +17,9 @@ public:
     GtkTreeView* getMacroTree() const { return m_treeMacro; }
 
 private:
-    GtkWidget* m_mainWindow = nullptr;
-    GtkWidget* m_macroDialog = nullptr;
-    GtkTreeView* m_treeMacro = nullptr;
+    GtkWidget* m_mainWindow = NULL;
+    GtkWidget* m_macroDialog = NULL;
+    GtkTreeView* m_treeMacro = NULL;
 };
 
 #endif // SETUP_VIEW_H

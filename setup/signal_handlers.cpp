@@ -48,7 +48,7 @@ void on_input_method_changed(GtkComboBox* cbb, gpointer user_data)
 void on_input_method_realize(GtkComboBox* cbb, gpointer user_data)
 {
     if (auto controller = global_setup_controller())
-        controller->handleComboBoxRealize(cbb, CONFIG_INPUTMETHOD);
+    controller->handleInputMethodRealize(cbb);
 }
 
 void on_output_charset_changed(GtkComboBox* cbb, gpointer user_data)
@@ -60,7 +60,7 @@ void on_output_charset_changed(GtkComboBox* cbb, gpointer user_data)
 void on_output_charset_realize(GtkComboBox* cbb, gpointer user_data)
 {
     if (auto controller = global_setup_controller())
-        controller->handleComboBoxRealize(cbb, CONFIG_OUTPUTCHARSET);
+    controller->handleOutputCharsetRealize(cbb);
 }
 
 gboolean on_macro_dialog_delete(GtkWidget* wid, GdkEvent* ev, gpointer user_data)
