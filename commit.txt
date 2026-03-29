@@ -1,18 +1,19 @@
-Comment include/ukengine/engine header enums and structures with code_comments.md style
+Comment mapping headers in include/ukengine/mapping following code_comments.md style
 
-- Add file-level documentation to `include/ukengine/engine/ukengine.h` and `include/ukengine/engine/unikey.h`.
-- Add detailed member and method comments to `UkSharedMem`, `UkEngine`, `KeyBufEntry`, and `VnWordForm`.
-- Add per-value documentation for `VnWordForm` enum elements.
-- Add per-field documentation for `WordInfo` struct fields.
-- Add API docs for `SetupUnikeyEngine`.
+- Add file-level documentation to `include/ukengine/mapping/charset.h`, `keycons.h`, `mactab.h`, `vnconv.h`, `vnlexi.h`.
+- Add detailed comments for `VnCharset`, derived charset classes, and mapping constants in `charset.h`.
+- Comment input method enum and option flags in `keycons.h`.
+- Document `CMacroTable` operations and storage model in `mactab.h`.
+- Document conversion constants, API functions, error codes, and options in `vnconv.h`.
+- Add enum group semantics for `VnLexiName`, `VowelSeq`, and `ConSeq` in `vnlexi.h`.
 
 Reasoning:
-- Improve maintainability and readability for engine integration interfaces.
-- Surface intent, state lifecycle, and mode behavior in public API headers.
+- Improve maintainability and readability of mapping/conversion abstractions.
+- Provide clear intent for mapping tables, option semantics and API errors.
 - Follow code comment guidelines in `.github/skills/development-guidelines/code_comments.md`.
 
 Validation:
-- `git diff` shows only comment and doc changes in include/ukengine/engine headers.
+- `git diff` shows only comment and doc changes in include/ukengine/mapping headers.
 - `./mkme` still succeeds with no behavioral changes.
 - `ctest --output-on-failure` still passes.
 

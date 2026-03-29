@@ -23,6 +23,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __CHARSET_CONVERT_H
 #define __CHARSET_CONVERT_H
 
+/**
+ * @file charset.h
+ * @brief Vietnamese character set conversion abstractions and concrete encodings.
+ *
+ * Defines the VnCharset interface and implementations for single-byte, Unicode,
+ * UTF-8/VIQR combinations, and platform-specific code pages.
+ *
+ * This module is used by the engine to translate between internal standard
+ * character codes and external encoding formats.
+ */
+
 #if !defined(_WIN32)
   #include <stdint.h>
 #endif
@@ -43,14 +54,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "byteio.h"
 #include "pattern.h"
 
+/**
+ * @brief Total number of mapped Vietnamese std char entries.
+ */
 #define TOTAL_VNCHARS 213
+
+/**
+ * @brief Number of alphabetic Vietnamese characters (subset of TOTAL_VNCHARS).
+ */
 #define TOTAL_ALPHA_VNCHARS 186
 
 #if defined(_WIN32)
-    typedef unsigned __int32 StdVnChar;
-    typedef unsigned __int16 UnicodeChar;
-    typedef unsigned __int16 UKWORD;
-    typedef unsigned __int32 UKDWORD;
+    typedef unsigned __int32 StdVnChar;  /**< internal unified VN char representation */
+    typedef unsigned __int16 UnicodeChar;/**< UTF-16 code unit type */
+    typedef unsigned __int16 UKWORD;     /**< 16-bit word in UniKey conversion tables */
+    typedef unsigned __int32 UKDWORD;    /**< 32-bit dword in UniKey conversion tables */
 #else
 //typedef unsigned int StdVnChar; //the size should be more specific
 	typedef uint32_t StdVnChar;
@@ -73,43 +91,85 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef MAKEWORD
+/**
+ * @brief Construct a word from two bytes in little-endian order.
+ */
 #define MAKEWORD(a, b)      ((UKWORD)(((UKBYTE)(a)) | ((UKWORD)((UKBYTE)(b))) << 8))
 #endif
 
+/** @brief Offset to move standard Vietnamese characters into a private range. */
 const StdVnChar VnStdCharOffset = 0x10000;
+
+/** @brief Sentinel for invalid or unmapped standard Vietnamese characters. */
 const StdVnChar INVALID_STD_CHAR = 0xFFFFFFFF;
+
+/** @brief Padding character used by conversions for non-renderable positions. */
 //const unsigned char PadChar = '?'; //? is used for VIQR charset
 const unsigned char PadChar = '#';
-const unsigned char PadStartQuote = '\"';
-const unsigned char PadEndQuote = '\"';
-const unsigned char PadEllipsis = '.';
+const unsigned char PadStartQuote = '"'; /**< verbatim quote begin char for unicode escape */
+const unsigned char PadEndQuote = '"';   /**< verbatim quote end char for unicode escape */
+const unsigned char PadEllipsis = '.';   /**< ellipsis placeholder char for missing output */
 
+/**
+ * @class VnCharset
+ * @brief Abstract base class for Vietnamese encoding conversions.
+ *
+ * Implementations convert between the internal StdVnChar representation
+ * and byte streams for various input/output encodings.
+ */
 class DllInterface VnCharset {
 public:
+	/**
+	 * @brief Prepare for a new input conversion sequence.
+	 */
 	virtual void startInput() {};
+
+	/**
+	 * @brief Prepare for a new output conversion sequence.
+	 */
 	virtual void startOutput() {};
-//	virtual UKBYTE *nextInput(UKBYTE *input, int inLen, StdVnChar & stdChar, int & bytesRead) = 0;
+
+	/**
+	 * @brief Read next character from input stream and map to StdVnChar.
+	 *
+	 * @param is source byte stream
+	 * @param stdChar output standard char
+	 * @param bytesRead number of input bytes consumed
+	 * @return 0 on success, or error code on failure.
+	 */
 	virtual int nextInput(ByteInStream & is, StdVnChar & stdChar, int & bytesRead) = 0;
 
-	//------------------------------------------------------------------------
-	// put a character to the output after converting it
-	// Arguments:
-	//     output[in]: output buffer
-	//     stdChar[in]: character in standard charset
-	//     outLen[out]: length of converted sequence
-	//     maxAvail[in]: max length available.
-	// Returns: next position in output
-	//------------------------------------------------------------------------
+	/**
+	 * @brief Write an output representation for a standard Vietnamese char.
+	 *
+	 * @param os destination byte stream
+	 * @param stdChar source standard char code
+	 * @param outLen output length written
+	 * @return next write position in output buffer.
+	 */
 	virtual int putChar(ByteOutStream & os, StdVnChar stdChar, int & outLen) = 0;
+
+    /**
+     * @brief Character element size in bytes for this encoding.
+     *
+     * Default may be overridden by subclasses.
+     */
     virtual int elementSize();
+
 	virtual ~VnCharset() {}
 };
 
 //--------------------------------------------------
+/**
+ * @class SingleByteCharset
+ * @brief Charset implementation for legacy single-byte encodings.
+ *
+ * Uses direct mapping tables from byte values to StdVnChar.
+ */
 class SingleByteCharset: public VnCharset {
 protected:
-	UKWORD m_stdMap[256];
-	unsigned char * m_vnChars;
+	UKWORD m_stdMap[256]; /**< byte to standard code mapping for input chars */
+	unsigned char * m_vnChars; /**< conversion table for output char mapping */
 public:
 	SingleByteCharset(unsigned char * vnChars);
 	virtual int nextInput(ByteInStream & is, StdVnChar & stdChar, int & bytesRead);
@@ -117,6 +177,10 @@ public:
 };
 
 //--------------------------------------------------
+/**
+ * @class VnInternalCharset
+ * @brief Internal Unicode-like operational charset representation (not normalized input).
+ */
 class VnInternalCharset: public VnCharset {
 public:
   VnInternalCharset() {};
@@ -126,10 +190,14 @@ public:
 };
 
 //--------------------------------------------------
+/**
+ * @class UnicodeCharset
+ * @brief UTF-16-based Unicode charset conversion implementation.
+ */
 class UnicodeCharset: public VnCharset {
 protected:
-	UKDWORD m_vnChars[TOTAL_VNCHARS];
-	UnicodeChar * m_toUnicode;
+	UKDWORD m_vnChars[TOTAL_VNCHARS]; /**< mapping from standard char index to Unicode code points */
+	UnicodeChar * m_toUnicode;        /**< pointer to output Unicode table */
 public:
 	UnicodeCharset(UnicodeChar *vnChars);
 	virtual int nextInput(ByteInStream & is, StdVnChar & stdChar, int & bytesRead);

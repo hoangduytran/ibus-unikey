@@ -24,8 +24,17 @@
 #ifndef __VN_LEXI_H
 #define __VN_LEXI_H
 
+/**
+ * @file vnlexi.h
+ * @brief Vietnamese lexical symbol and sequence enumerations.
+ *
+ * Defines canonical Vietnamese alphabet codes and composition sequence ids.
+ */
+
 enum VnLexiName {
-  vnl_nonVnChar = -1,
+  vnl_nonVnChar = -1, /**< non-Vietnamese character placeholder */
+
+  /* Basic letter forms with tone variants (A/a, A1/a1..A5/a5) */
   vnl_A, vnl_a, vnl_A1, vnl_a1, vnl_A2, vnl_a2, vnl_A3, vnl_a3, vnl_A4, vnl_a4, vnl_A5, vnl_a5,
   vnl_Ar, vnl_ar, vnl_Ar1, vnl_ar1, vnl_Ar2, vnl_ar2, vnl_Ar3, vnl_ar3, vnl_Ar4, vnl_ar4, vnl_Ar5, vnl_ar5,
   vnl_Ab, vnl_ab, vnl_Ab1, vnl_ab1, vnl_Ab2, vnl_ab2, vnl_Ab3, vnl_ab3, vnl_Ab4, vnl_ab4, vnl_Ab5, vnl_ab5,
@@ -49,6 +58,9 @@ enum VnLexiName {
   vnl_lastChar,
 };
 
+/**
+ * @brief Sequence identifiers for Vietnamese vowel clusters.
+ */
 enum VowelSeq {
   vs_nil = -1,
   vs_a,
@@ -123,6 +135,9 @@ enum VowelSeq {
   vs_yeru
 };
 
+/**
+ * @brief Sequence identifiers for Vietnamese consonant clusters.
+ */
 enum ConSeq {
   cs_nil = -1,
   cs_b,
