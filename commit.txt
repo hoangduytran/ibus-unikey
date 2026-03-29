@@ -1,0 +1,18 @@
+Comment include/core byte stream and input processor data structures and methods
+
+- Add file-level documentation to `include/ukengine/core/byteio.h` and `include/ukengine/core/inputproc.h`.
+- Add detailed member and method comments in `StringBIStream`, `FileBIStream`, `StringBOStream`, `FileBOStream`.
+- Annotate `UkKeyEvName` values to explain each Vietnamese event classification.
+- Annotate `UkKeyMapping` fields to clarify key/action semantics and ownership assumptions.
+- Explicitly document `DllInterface` mapping tables in `inputproc.h` (Telex/VNI/VIQR/Simple/MSVI).
+
+Reasoning:
+- Improve maintainability and readability for core I/O and input method modules.
+- Surface intent, invariant assumptions, and failure modes in headers used across the codebase.
+- Follow new code comment guidelines in `.github/skills/development-guidelines/code_comments.md`.
+
+Validation:
+- `git diff` shows only comment and doc changes in include/core files.
+- `./mkme` still succeeds with no behavioral changes.
+- `ctest --output-on-failure` still passes.
+
