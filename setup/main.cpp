@@ -17,14 +17,30 @@ GtkTreeView* tree_macro;
 void init_gtk_builder()
 {
     GtkBuilder* builder = gtk_builder_new();
-    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", NULL);
+    GError* error = NULL;
+    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", &error);
     gtk_builder_connect_signals(builder, NULL);
 
     mwin = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
     dlgMacro = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
-    gtk_window_set_transient_for(GTK_WINDOW(dlgMacro), GTK_WINDOW(mwin));
-
     tree_macro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
+
+    if (error != NULL)
+    {
+        g_error("Failed to load setup UI: %s", error->message);
+    }
+
+    if (mwin == NULL || dlgMacro == NULL || tree_macro == NULL)
+    {
+        g_error("Failed to resolve required setup widgets from GTK builder");
+    }
+
+    // GtkBuilder owns a reference to top-level widgets. Keep explicit
+    // references so the macro dialog remains valid after the builder is freed.
+    g_object_ref_sink(mwin);
+    g_object_ref_sink(dlgMacro);
+
+    gtk_window_set_transient_for(GTK_WINDOW(dlgMacro), GTK_WINDOW(mwin));
 
     g_object_unref(builder);
 }
