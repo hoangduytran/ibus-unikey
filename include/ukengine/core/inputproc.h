@@ -1,3 +1,12 @@
+/**
+ * @file inputproc.h
+ * @brief Vietnamese input method key event classification and mapping.
+ *
+ * Contains core state and control logic for UkInputProcessor, including
+ * keyboard layout mapping and classification of Vietnamese character events.
+ * This module is a central part of the input method engine and is designed
+ * for use in both single-threaded and shared-memory contexts.
+ */
 // -*- coding:unix; mode:c++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 /* Unikey Vietnamese Input Method
  * Copyright (C) 2000-2005 Pham Kim Long
@@ -40,82 +49,260 @@
     #define DllImport
 #endif
 
+/**
+ * @brief Types of input key events for Vietnamese diacritic/character handling.
+ *
+ * The event classification allows the input processor to choose the right
+ * modification strategy for tones, bowls, hooks, and other Vietnamese marks.
+ */
 enum UkKeyEvName {
-  vneRoofAll, vneRoof_a, vneRoof_e, vneRoof_o, 
-  vneHookAll, vneHook_uo, vneHook_u, vneHook_o, vneBowl, 
-  vneDd, 
-  vneTone0, vneTone1, vneTone2, vneTone3, vneTone4, vneTone5,
-  vne_telex_w, //special for telex
-  vneMapChar, //e.g. [ -> u+ , ] -> o+
+  /**
+   * Roof mark event on any vowel (â, ê, ô). Used when the input processor
+   * needs to handle roof-type diacritics generically.
+   */
+  vneRoofAll,
+
+  /** Roof mark on 'a' vowel (â). */
+  vneRoof_a,
+  /** Roof mark on 'e' vowel (ê). */
+  vneRoof_e,
+  /** Roof mark on 'o' vowel (ô). */
+  vneRoof_o,
+
+  /** Hook mark event for all hookable vowels (ơ, ư). */
+  vneHookAll,
+  /** Hook mark on 'uơ' vowel variant. */
+  vneHook_uo,
+  /** Hook mark on 'u' vowel (ư). */
+  vneHook_u,
+  /** Hook mark on 'o' vowel (ơ). */
+  vneHook_o,
+
+  /** Bowl shape modifier (ă, ơ, etc.). */
+  vneBowl,
+
+  /** special doubled consonant event for 'đ'. */
+  vneDd,
+
+  /** No tone (default) */
+  vneTone0,
+  /** Acute tone (sắc) */
+  vneTone1,
+  /** Grave tone (huyền) */
+  vneTone2,
+  /** Hook (hỏi) */
+  vneTone3,
+  /** Tilde (ngã) */
+  vneTone4,
+  /** Dot (nặng) */
+  vneTone5,
+
+  /** Telex special 'w' handling technique (e.g., 'aw' -> 'ă'). */
+  vne_telex_w,
+
+  /** Mapping keys that produce explicit letters instead of diacritics. */
+  vneMapChar,
+
+  /** Escape or cancel input rule (e.g., treat as raw character). */
   vneEscChar,
-  vneNormal, //does not belong to any of the above categories
-  vneCount //just to count how many event types there are
+
+  /** Normal key, no special Vietnamese event mapping. */
+  vneNormal,
+
+  /** Number of UkKeyEvName values; useful for table sizing. */
+  vneCount
 };
 
 enum UkCharType {
+  /** Vietnamese character; may receive tone mark or accent */
   ukcVn,
-  ukcWordBreak, 
-  ukcNonVn, 
+  /** Word boundary (space, punctuation, etc.) */
+  ukcWordBreak,
+  /** Non-Vietnamese, normal character */
+  ukcNonVn,
+  /** Reset state (special fallback) */
   ukcReset
 };
 
+/**
+ * @brief Key classification event used by the input processor.
+ */
 struct UkKeyEvent {
-  int evType;
-  UkCharType chType;
-  VnLexiName vnSym; //meaningful only when chType==ukcVn
-  unsigned int keyCode;
-  int tone; //meaningful only when this is a vowel
+  int evType;          ///< UkKeyEvName event type
+  UkCharType chType;   ///< Character classification
+  VnLexiName vnSym;    ///< Vietnamese shape symbol (only for ukcVn)
+  unsigned int keyCode;///< Physical key code
+  int tone;            ///< Tone value for vowels
 };
 
+/**
+ * @brief Mapping from a raw key to an input action used by input method engines.
+ *
+ * Each entry pairs a physical byte value with a Vk-like action code used by
+ * the processor to produce Vietnamese composition behavior.
+ *
+ * Implementation note:
+ * - key is treated as unsigned to support extended ASCII indices (e.g. 0x80..0xFF).
+ * - action should be a value from the current input method action table, where
+ *   special sentinel values indicate no-op or mode change.
+ */
 struct UkKeyMapping {
+    /**
+     * @brief Raw input key code (unsigned) for mapping.
+     *
+     * Typically 0..255, taken from keyboard scan/character input layer.
+     */
     unsigned char key;
+
+    /**
+     * @brief Action code to execute for this key.
+     *
+     * The exact meaning is method-specific and resolved by UkInputProcessor
+     * to set event types (e.g., vneRoof_a) or character insertion descriptors.
+     */
     int action;
 };
 
 ///////////////////////////////////////////
+/**
+ * @brief Core Vietnamese input method key processor.
+ *
+ * Handles input method selection, character classification, and key-to-event
+ * conversion according to a selected keyboard layout (Telex, VNI, etc.).
+ */
 class UkInputProcessor {
 
 public:
-  //don't do anything with constructor, because
-  //this object can be allocated in shared memory
-  //Use init method instead
+  /**
+   * @brief Default object state is uninitialized, use init().
+   *
+   * NOTE: This object may be placed in shared memory. Avoid constructing
+   * heavy members here, and use init() to establish necessary state.
+   */
   //UkInputProcessor();
-  
+
+  /**
+   * @brief Initialize internal mapping tables and static state.
+   */
   void init();
 
+  /**
+   * @brief Get currently active input method.
+   */
   UkInputMethod getIM()
   {
     return m_im;
   }
 
+  /**
+   * @brief Convert keycode into semantic input event (tone/hook/bowl/etc.).
+   *
+   * @param keyCode Raw key code from keyboard input.
+   * @param[out] ev Populated UkKeyEvent with event details.
+   */
   void keyCodeToEvent(unsigned int keyCode, UkKeyEvent & ev);
+
+  /**
+   * @brief Convert keycode into symbolic event (e.g., diacritic character mapping).
+   */
   void keyCodeToSymbol(unsigned int keyCode, UkKeyEvent & ev);
+
+  /**
+   * @brief Set active input method by enum.
+   */
   int setIM(UkInputMethod im);
+
+  /**
+   * @brief Set active input method from key mapping table.
+   */
   int setIM(int map[256]);
+
+  /**
+   * @brief Export current key map to caller-provided array.
+   *
+   * @param map Output map array (size 256).
+   */
   void getKeyMap(int map[256]);
 
+  /**
+   * @brief Classify key code as Vietnamese word/non-Vietnamese/break.
+   */
   UkCharType getCharType(unsigned int keyCode);
 
 protected:
-  static bool m_classInit;
+  static bool m_classInit; ///< Class-level initialization guard
 
-  UkInputMethod m_im;
-  int m_keyMap[256];
+  UkInputMethod m_im;     ///< Current input method
+  int m_keyMap[256];      ///< Current key map lookup table
 
+  /**
+   * @brief Populate m_keyMap using built-in method mapping.
+   *
+   * @param map Null-terminated method map.
+   */
   void useBuiltIn(UkKeyMapping *map);
 
 };
 
+/**
+ * @brief Reset the key map to the default unmodified state.
+ *
+ * @param keyMap Array of 256 mapping values.
+ */
 void UkResetKeyMap(int keyMap[256]);
+
+/**
+ * @brief Initialize internal classifier tables for Unicode inputs.
+ */
 void SetupInputClassifierTable();
 
+/**
+ * @brief Telex input method key mapping.
+ *
+ * Standard Telex mappings for Vietnamese typing (e.g., "s" for sắc, "f" for huyền).
+ * Used by UkInputProcessor when UkInputMethod is set to the Telex layout.
+ */
 DllInterface extern UkKeyMapping TelexMethodMapping[];
+
+/**
+ * @brief Simple Telex input method mapping.
+ *
+ * A reduced variant of Telex with fewer special keys and simpler heuristics,
+ * designed for users who prefer minimal key combinations.
+ */
 DllInterface extern UkKeyMapping SimpleTelexMethodMapping[];
+
+/**
+ * @brief VNI input method key mapping.
+ *
+ * Uses numeric tone and diacritic keys (e.g., 1..5 for tones, 6..9 for hooks).
+ * Set with UkInputMethod VNI.
+ */
 DllInterface extern UkKeyMapping VniMethodMapping[];
+
+/**
+ * @brief VIQR input method key mapping.
+ *
+ * Maps VIQR syntax sequences to Vietnamese characters (e.g., "a^" -> â).
+ */
 DllInterface extern UkKeyMapping VIQRMethodMapping[];
+
+/**
+ * @brief Microsoft Vietnamese (MSVI) key mapping.
+ *
+ * Compatibility mode for Microsoft VI keyboard layout, used by older legacy
+ * applications and to support users familiar with MSVI conventions.
+ */
 DllInterface extern UkKeyMapping MsViMethodMapping[];
 
 extern VnLexiName IsoVnLexiMap[];
+
+/**
+ * @brief Map ASCII code to Vietnamese lexical enumeration.
+ *
+ * @param keyCode Unicode code point or ASCII value.
+ * @return Corresponding VnLexiName.
+ */
 inline VnLexiName IsoToVnLexi(unsigned int keyCode)
 {
     return (keyCode >= 256)? vnl_nonVnChar : IsoVnLexiMap[keyCode];

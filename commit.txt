@@ -1,20 +1,18 @@
-Refactor setup module into modular architecture without changing behavior
+Comment include/core byte stream and input processor data structures and methods
 
-- Move the existing setup logic into focused modules:
-	- setup/ui/setup_view.{h,cpp}
-	- setup/config/settings_store.{h,cpp}
-	- setup/controller/setup_controller.{h,cpp}
-- Keep the original GTK callback behavior and dialog flow intact.
-- Keep the existing GTK Builder signal names and wiring so the UI remains compatible.
-- Update setup/CMakeLists.txt to build the new module layout.
-- Preserve the original macro-table constants and edit behavior.
+- Add file-level documentation to `include/ukengine/core/byteio.h` and `include/ukengine/core/inputproc.h`.
+- Add detailed member and method comments in `StringBIStream`, `FileBIStream`, `StringBOStream`, `FileBOStream`.
+- Annotate `UkKeyEvName` values to explain each Vietnamese event classification.
+- Annotate `UkKeyMapping` fields to clarify key/action semantics and ownership assumptions.
+- Explicitly document `DllInterface` mapping tables in `inputproc.h` (Telex/VNI/VIQR/Simple/MSVI).
 
 Reasoning:
-- Separate UI ownership, settings access, and callback glue without altering runtime behavior.
-- Make the setup code easier to maintain and test while keeping the original code paths.
-- Follow the documented project plan for breaking up setup/* into smaller modules.
+- Improve maintainability and readability for core I/O and input method modules.
+- Surface intent, invariant assumptions, and failure modes in headers used across the codebase.
+- Follow new code comment guidelines in `.github/skills/development-guidelines/code_comments.md`.
 
 Validation:
-- cmake .. && make -j4 succeeded
-- ctest --output-on-failure succeeded
-- make install failed in the local environment because writing to /usr/libexec requires elevated permissions; a staging install was also attempted for validation
+- `git diff` shows only comment and doc changes in include/core files.
+- `./mkme` still succeeds with no behavioral changes.
+- `ctest --output-on-failure` still passes.
+
