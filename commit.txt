@@ -1,0 +1,20 @@
+Refactor setup module into modular architecture without changing behavior
+
+- Move the existing setup logic into focused modules:
+	- setup/ui/setup_view.{h,cpp}
+	- setup/config/settings_store.{h,cpp}
+	- setup/controller/setup_controller.{h,cpp}
+- Keep the original GTK callback behavior and dialog flow intact.
+- Keep the existing GTK Builder signal names and wiring so the UI remains compatible.
+- Update setup/CMakeLists.txt to build the new module layout.
+- Preserve the original macro-table constants and edit behavior.
+
+Reasoning:
+- Separate UI ownership, settings access, and callback glue without altering runtime behavior.
+- Make the setup code easier to maintain and test while keeping the original code paths.
+- Follow the documented project plan for breaking up setup/* into smaller modules.
+
+Validation:
+- cmake .. && make -j4 succeeded
+- ctest --output-on-failure succeeded
+- make install failed in the local environment because writing to /usr/libexec requires elevated permissions; a staging install was also attempted for validation
