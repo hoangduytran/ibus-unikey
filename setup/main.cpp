@@ -8,42 +8,9 @@
 
 #include "unikey_config.h"
 
-#define _(string) gettext(string)
-
-GtkWidget* mwin;
-GtkWidget* dlgMacro;
-GtkTreeView* tree_macro;
-
-void init_gtk_builder()
-{
-    GtkBuilder* builder = gtk_builder_new();
-    GError* error = NULL;
-    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", &error);
-    gtk_builder_connect_signals(builder, NULL);
-
-    mwin = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
-    dlgMacro = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
-    tree_macro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
-
-    if (error != NULL)
-    {
-        g_error("Failed to load setup UI: %s", error->message);
-    }
-
-    if (mwin == NULL || dlgMacro == NULL || tree_macro == NULL)
-    {
-        g_error("Failed to resolve required setup widgets from GTK builder");
-    }
-
-    // GtkBuilder owns a reference to top-level widgets. Keep explicit
-    // references so the macro dialog remains valid after the builder is freed.
-    g_object_ref_sink(mwin);
-    g_object_ref_sink(dlgMacro);
-
-    gtk_window_set_transient_for(GTK_WINDOW(dlgMacro), GTK_WINDOW(mwin));
-
-    g_object_unref(builder);
-}
+#include "ui/setup_view.h"
+#include "config/settings_store.h"
+#include "controller/setup_controller.h"
 
 int main(int argc, char** argv)
 {
@@ -56,11 +23,16 @@ int main(int argc, char** argv)
     gtk_init(&argc, &argv);
     gtk_window_set_default_icon_from_file(PKGDATADIR "/icons/ibus-unikey.svg", NULL);
 
-    init_gtk_builder();
+    SetupView view;
+    view.init();
 
-    gtk_widget_show_all(mwin);
+    SettingsStore store;
+    SetupController controller(view, store);
+    global_setup_controller_set(&controller);
+    controller.init();
+
+    view.showMainWindow();
     gtk_main();
 
     return 0;
 }
-
