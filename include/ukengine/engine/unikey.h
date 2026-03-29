@@ -24,6 +24,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __UNIKEY_H
 #define __UNIKEY_H
 
+/**
+ * @file unikey.h
+ * @brief C interface for UniKey Vietnamese input engine API.
+ *
+ * Provides flat C bindings for setup, keyboard event filtering and configuration.
+ * Designed for use by platform integration layers.
+ */
+
 #include "keycons.h"
 
 /*----------------------------------------------------
@@ -63,54 +71,123 @@ Clean up:
 #if defined(__cplusplus)
 extern "C" {
 #endif
+    /**
+     * @brief Transient output buffer for filtered characters.
+     *
+     * Populated by UnikeyFilter and consumed by host app.
+     */
     extern unsigned char UnikeyBuf[];
+
+    /**
+     * @brief Number of backspaces to emit after filtering.
+     */
     extern int UnikeyBackspaces;
+
+    /**
+     * @brief Number of characters in UnikeyBuf currently.
+     */
     extern int UnikeyBufChars;
+
+    /**
+     * @brief Current output type (charset/flags) after filtering.
+     */
     extern UkOutputType UnikeyOutput;
 
-  void UnikeySetup(); // always call this first
-  void UnikeyCleanup(); // call this when unloading unikey module
-  
-  // call this to reset Unikey's state when focus, context is changed or
-  // some control key is pressed
-  void UnikeyResetBuf(); 
+    /**
+     * @brief Initialize the UniKey engine subsystem.
+     *
+     * Must be called prior to any other API function.
+     */
+    void UnikeySetup();
 
- // main handler, call every time a character input is received
-  void UnikeyFilter(unsigned int ch);
-  void UnikeyPutChar(unsigned int ch); // put new char without filtering
+    /**
+     * @brief Clean up engine resources prior to module unload.
+     */
+    void UnikeyCleanup();
 
-  // call this before UnikeyFilter for correctly processing some TELEX shortcuts
-  void UnikeySetCapsState(int shiftPressed, int CapsLockOn);
+    /**
+     * @brief Reset input context state (e.g., on focus change).
+     */
+    void UnikeyResetBuf();
 
- // call this when backspace is pressed
-  void UnikeyBackspacePress();
+    /**
+     * @brief Main per-key handler; call on every character input.
+     *
+     * @param ch Unicode codepoint or virtual key to process.
+     */
+    void UnikeyFilter(unsigned int ch);
 
-  // call this to restore to original key strokes
-  void UnikeyRestoreKeyStrokes();
+    /**
+     * @brief Feed a raw character into engine without transformation.
+     */
+    void UnikeyPutChar(unsigned int ch);
 
- //set extra options
-  void UnikeySetOptions(UnikeyOptions *pOpt); 
-  void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt);
+    /**
+     * @brief Update keyboard modifier state before filtering.
+     *
+     * @param shiftPressed nonzero for shift held
+     * @param CapsLockOn nonzero if caps lock active
+     */
+    void UnikeySetCapsState(int shiftPressed, int CapsLockOn);
 
-  void UnikeyGetOptions(UnikeyOptions *pOpt);
+    /**
+     * @brief Process backspace key event to modify engine buffer.
+     */
+    void UnikeyBackspacePress();
 
-  // set input method
-  //   im: TELEX_INPUT, VNI_INPUT, VIQR_INPUT, VIQR_STAR_INPUT
-  void UnikeySetInputMethod(UkInputMethod im);
-  // set output format
-  //  void UnikeySetOutputVIQR();
-  // void UnikeySetOutputUTF8();
-  int UnikeySetOutputCharset(int charset);
+    /**
+     * @brief Restore input to original keystrokes after cancellation.
+     */
+    void UnikeyRestoreKeyStrokes();
 
-  int UnikeyLoadMacroTable(const char *fileName);
-  int UnikeyLoadUserKeyMap(const char *fileName);
+    /**
+     * @brief Apply new engine options.
+     */
+    void UnikeySetOptions(UnikeyOptions *pOpt);
 
-  //call this to enable typing vietnamese even in a non-vn sequence
-  //e.g: GD&DDT,QDDND...
-  //The engine will return to normal mode when a word-break occurs.
-  void UnikeySetSingleMode();
+    /**
+     * @brief Initialize a options struct with library defaults.
+     */
+    void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt);
 
-  bool UnikeyAtWordBeginning();
+    /**
+     * @brief Read current engine options into caller struct.
+     */
+    void UnikeyGetOptions(UnikeyOptions *pOpt);
+
+    /**
+     * @brief Select active input method (Telex/VNI/ViQR/etc.).
+     */
+    void UnikeySetInputMethod(UkInputMethod im);
+
+    /**
+     * @brief Select output charset encoding.
+     */
+    int UnikeySetOutputCharset(int charset);
+
+    /**
+     * @brief Load macro definitions from file.
+     * @return 0 on success or nonzero on failure.
+     */
+    int UnikeyLoadMacroTable(const char *fileName);
+
+    /**
+     * @brief Load user key mapping table from file.
+     * @return 0 on success or nonzero on failure.
+     */
+    int UnikeyLoadUserKeyMap(const char *fileName);
+
+    /**
+     * @brief Enable non-VN sequence typing mode.
+     *
+     * Maintains Vietnamese composition across non-VN characters until word-break.
+     */
+    void UnikeySetSingleMode();
+
+    /**
+     * @brief Check whether engine is at start of a word.
+     */
+    bool UnikeyAtWordBeginning();
 #if defined(__cplusplus)
 }
 #endif
