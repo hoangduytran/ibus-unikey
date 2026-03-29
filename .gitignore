@@ -17,6 +17,11 @@ missing
 Makefile
 ibus-unikey.spec
 libtool
+.github/
+project_planning/
+tests/
+build/
+mkme
 
 po/Makevars.template
 po/Rules-quot
