@@ -45,7 +45,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /**
  * @brief Supported input method enumeration.
  */
-typedef enum {UkTelex, UkVni, UkViqr, UkMsVi, UkUsrIM, UkSimpleTelex, UkSimpleTelex2} UkInputMethod;
+typedef enum {
+    UkTelex,        /**< Telex input method (classic UniKey rules). */
+    UkVni,          /**< VNI input method (numeric tone marks via digits). */
+    UkViqr,         /**< VIQR input method (ASCII-based textual accent codes). */
+    UkMsVi,         /**< Microsoft Vietnamese IME compatibility mode. */
+    UkUsrIM,        /**< User-defined custom mapping input method. */
+    UkSimpleTelex,  /**< Simplified Telex variant (fewer keystrokes). */
+    UkSimpleTelex2  /**< Another simplified Telex variant with alternate behavior. */
+} UkInputMethod;
 
 /**
  * @brief Runtime configuration options for UniKey engine.
@@ -80,17 +88,20 @@ struct _UnikeyOptions
 typedef struct _UnikeySysInfo UnikeySysInfo;
 struct _UnikeySysInfo
 {
-  int switchKey;
-  HHOOK keyHook;
-  HHOOK mouseHook;
-  HWND hMainDlg;
-  UINT iconMsgId;
-  HICON hVietIcon,hEnIcon;
-  int unicodePlatform;
-  DWORD winMajorVersion, winMinorVersion;
+  int switchKey;           /**< virtual key code used to toggle UniKey mode. */
+  HHOOK keyHook;           /**< handle to keyboard hook installed for interception. */
+  HHOOK mouseHook;         /**< handle to mouse hook used during composition mode in some UIs. */
+  HWND hMainDlg;           /**< main window/dialog handle used for event dispatch. */
+  UINT iconMsgId;          /**< notification icon message ID for tray icon actions. */
+  HICON hVietIcon, hEnIcon;/**< icons used in system tray for Vietnamese/English mode states. */
+  int unicodePlatform;     /**< detected Unicode support level on this Windows platform. */
+  DWORD winMajorVersion, winMinorVersion; /**< Windows version at startup. */
 };
 #endif
 
-typedef enum {UkCharOutput, UkKeyOutput} UkOutputType;
+typedef enum {
+    UkCharOutput,           /**< engine delivers final Vietnamese character stream (text output). */
+    UkKeyOutput             /**< engine returns transformed keystrokes for IME-style input. */
+} UkOutputType;
 
 #endif

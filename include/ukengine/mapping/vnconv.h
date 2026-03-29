@@ -69,18 +69,35 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CONV_CHARSET_VIETWAREF	24 /**< Vietware F legacy encoding */
 #define CONV_CHARSET_ISC        25 /**< ISC legacy encoding */
 
-#define CONV_CHARSET_VNIWIN		40
-#define CONV_CHARSET_BKHCM2		41
-#define CONV_CHARSET_VIETWAREX	42
-#define CONV_CHARSET_VNIMAC		43
+#define CONV_CHARSET_VNIWIN		40 /**< VNI Windows legacy encoding. */
+#define CONV_CHARSET_BKHCM2		41 /**< BK HCM2 legacy encoding. */
+#define CONV_CHARSET_VIETWAREX	42 /**< Vietware X legacy encoding. */
+#define CONV_CHARSET_VNIMAC		43 /**< VNIMAC legacy encoding. */
 
-#define CONV_TOTAL_SINGLE_CHARSETS 6
-#define CONV_TOTAL_DOUBLE_CHARSETS 4
+#define CONV_TOTAL_SINGLE_CHARSETS 6 /**< Count of legacy single-byte charsets (TCVN3/VPS/VISCII/BKHCM1/VIETWAREF/ISC). */
+#define CONV_TOTAL_DOUBLE_CHARSETS 4 /**< Count of legacy double-byte charsets (VNIWIN/BKHCM2/VIETWAREX/VNIMAC). */
 
 
-#define IS_SINGLE_BYTE_CHARSET(x) (x >= CONV_CHARSET_TCVN3 && x < CONV_CHARSET_TCVN3+CONV_TOTAL_SINGLE_CHARSETS)
-#define IS_DOUBLE_BYTE_CHARSET(x) (x >= CONV_CHARSET_VNIWIN && x < CONV_CHARSET_VNIWIN+CONV_TOTAL_DOUBLE_CHARSETS)
+/**
+ * @brief Predicate to test if a charset ID is a supported single-byte encoding.
+ *
+ * @param x charset ID to test.
+ * @return non-zero true when x falls within configured single-byte range.
+ */
+#define IS_SINGLE_BYTE_CHARSET(x) (x >= CONV_CHARSET_TCVN3 && x < CONV_CHARSET_TCVN3 + CONV_TOTAL_SINGLE_CHARSETS)
 
+/**
+ * @brief Predicate to test if a charset ID is a supported double-byte encoding.
+ *
+ * @param x charset ID to test.
+ * @return non-zero true when x falls within configured double-byte range.
+ */
+#define IS_DOUBLE_BYTE_CHARSET(x) (x >= CONV_CHARSET_VNIWIN && x < CONV_CHARSET_VNIWIN + CONV_TOTAL_DOUBLE_CHARSETS)
+
+/**
+ * @typedef UKBYTE
+ * @brief Byte type used for conversion buffers in VnConvert APIs.
+ */
 typedef unsigned char UKBYTE;
 
 #if defined(__cplusplus)
@@ -103,6 +120,15 @@ DllInterface  int VnConvert(int inCharset, int outCharset, UKBYTE *input, UKBYTE
 
 /**
  * @brief Convert contents of an input file to an output file.
+ *
+ * Reads data from @p inFile and writes converted data to @p outFile
+ * applying the given source and destination charset IDs.
+ *
+ * @param inCharset source charset ID (CONV_CHARSET_* constant)
+ * @param outCharset destination charset ID (CONV_CHARSET_* constant)
+ * @param inFile path to the input file to convert (must be readable)
+ * @param outFile path to the output file to write (created/truncated)
+ * @return conversion status code (0 for success; negative for errors)
  */
 DllInterface  int VnFileConvert(int inCharset, int outCharset, const char *inFile, const char *outFile);
 
@@ -117,16 +143,20 @@ DllInterface const char * VnConvErrMsg(int errCode);
 
 /**
  * @brief Error codes returned by VnConv functions.
+ *
+ * Each enum value is returned by conversion routines to indicate
+ * the status and error type.  `VnConvErrMsg()` can be used to convert
+ * these into human-readable text.
  */
 enum VnConvError {
-	VNCONV_NO_ERROR,      /**< success */
-	VNCONV_UNKNOWN_ERROR, /**< unspecified error */
-	VNCONV_INVALID_CHARSET, /**< unknown charset ID */
-	VNCONV_ERR_INPUT_FILE, /**< input file open/read error */
-	VNCONV_ERR_OUTPUT_FILE, /**< output file open/write error */
-	VNCONV_OUT_OF_MEMORY, /**< memory allocation failure */
-	VNCONV_ERR_WRITING,   /**< write failure while converting */
-	VNCONV_LAST_ERROR
+	VNCONV_NO_ERROR,      /**< conversion completed successfully. */
+	VNCONV_UNKNOWN_ERROR, /**< unknown or unclassified conversion error. */
+	VNCONV_INVALID_CHARSET, /**< input or output charset ID is not recognized. */
+	VNCONV_ERR_INPUT_FILE, /**< input file path cannot be opened or read. */
+	VNCONV_ERR_OUTPUT_FILE, /**< output file path cannot be created or written. */
+	VNCONV_OUT_OF_MEMORY, /**< insufficient memory to complete conversion. */
+	VNCONV_ERR_WRITING,   /**< error encountered during output write operations. */
+	VNCONV_LAST_ERROR     /**< sentinel value, not returned; used for bounds checks. */
 };
 
 /**
@@ -153,8 +183,27 @@ struct _VnConvOptions {
     int smartViqr;   /**< smart VIQR mode heuristics */
 };
 
+/**
+ * @brief Apply conversion options to the global VnConv engine.
+ *
+ * Copies fields from user-provided VnConvOptions into internal settings.
+ *
+ * @param pOptions pointer to option structure; must not be nullptr.
+ */
 DllInterface void VnConvSetOptions(VnConvOptions *pOptions);
+
+/**
+ * @brief Retrieve current engine options into caller-provided structure.
+ *
+ * @param pOptions pointer to output option structure; must not be nullptr.
+ */
 DllInterface void VnConvGetOptions(VnConvOptions *pOptions);
+
+/**
+ * @brief Reset engine options to defaults and optionally return them.
+ *
+ * @param pOptions pointer to option structure to receive default values; optional but preferred.
+ */
 DllInterface void VnConvResetOptions(VnConvOptions *pOptions);
 
 #endif

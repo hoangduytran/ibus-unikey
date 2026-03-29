@@ -22,6 +22,7 @@ project_planning/
 tests/
 build/
 mkme
+*commit.txt
 
 po/Makevars.template
 po/Rules-quot
