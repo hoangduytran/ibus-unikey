@@ -25,5 +25,9 @@ target_include_directories(ibus-setup-unikey PUBLIC ${GTK3_INCLUDE_DIRS})
 target_link_options(ibus-setup-unikey PRIVATE -rdynamic)
 
 install(TARGETS ibus-setup-unikey DESTINATION ${LIBEXECDIR})
-install(FILES ibus-unikey.ui DESTINATION ${PKGDATADIR}/ui)
+install(FILES
+    ui/main_window.ui
+    ui/macro_dialog.ui
+    DESTINATION ${PKGDATADIR}/ui
+)
 

@@ -4,17 +4,23 @@ void SetupView::init()
 {
     GtkBuilder* builder = gtk_builder_new();
     GError* error = NULL;
-    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", &error);
+    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/main_window.ui", &error);
+    if (error != NULL)
+    {
+        g_error("Failed to load setup UI: %s", error->message);
+    }
+
+    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/macro_dialog.ui", &error);
+    if (error != NULL)
+    {
+        g_error("Failed to load setup UI: %s", error->message);
+    }
+
     gtk_builder_connect_signals(builder, NULL);
 
     m_mainWindow = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
     m_macroDialog = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
     m_treeMacro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
-
-    if (error != NULL)
-    {
-        g_error("Failed to load setup UI: %s", error->message);
-    }
 
     if (m_mainWindow == NULL || m_macroDialog == NULL || m_treeMacro == NULL)
     {
