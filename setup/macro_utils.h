@@ -6,6 +6,7 @@
 
 enum {COL_KEY = 0, COL_VALUE};
 #define STR_NULL_ITEM "..."
+#define MACRO_DEFAULT_VALUE "(replace text)"
 
 gboolean list_store_check_exists(GtkListStore* store, gchar* check_key);
 void list_store_add_null_item(GtkListStore* list);
