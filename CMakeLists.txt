@@ -35,13 +35,6 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/include/ukengine/roof
     ${PROJECT_SOURCE_DIR}/include/ukengine/core
     ${PROJECT_SOURCE_DIR}/include/ukengine/engine
-    ${PROJECT_SOURCE_DIR}/ukengine
-    ${PROJECT_SOURCE_DIR}/ukengine/mapping
-    ${PROJECT_SOURCE_DIR}/ukengine/tables
-    ${PROJECT_SOURCE_DIR}/ukengine/patterns
-    ${PROJECT_SOURCE_DIR}/ukengine/roof
-    ${PROJECT_SOURCE_DIR}/ukengine/core
-    ${PROJECT_SOURCE_DIR}/ukengine/engine
     ${PROJECT_SOURCE_DIR}/src/config
 )
 
