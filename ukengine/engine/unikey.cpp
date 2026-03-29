@@ -101,11 +101,11 @@ void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt)
 {
   pOpt->freeMarking = 1;
   pOpt->modernStyle = 0;
-  pOpt->macroEnabled = 0;
+  pOpt->macroEnabled = 1;
   pOpt->useUnicodeClipboard = 0;
   pOpt->alwaysMacro = 0;
   pOpt->spellCheckEnabled = 1;
-  pOpt->autoNonVnRestore = 0;
+  pOpt->autoNonVnRestore = 1;
 }
 
 //--------------------------------------------

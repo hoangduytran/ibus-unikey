@@ -130,6 +130,9 @@ void on_btn_macroedit_clicked(GtkButton* btn, gpointer user_data)
     auto store = GTK_LIST_STORE(gtk_tree_view_get_model(tree_macro));
     unikey_macro_to_store(&macro, store);
 
+    gtk_widget_show_all(dlgMacro);
+    gtk_window_present(GTK_WINDOW(dlgMacro));
+
     int ret = gtk_dialog_run(GTK_DIALOG(dlgMacro));
     if (ret == GTK_RESPONSE_OK)
     {

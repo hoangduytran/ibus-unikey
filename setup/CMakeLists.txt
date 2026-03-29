@@ -12,6 +12,7 @@ target_link_libraries(ibus-setup-unikey
     ${GTK3_LIBRARIES}
 )
 target_include_directories(ibus-setup-unikey PUBLIC ${GTK3_INCLUDE_DIRS})
+target_link_options(ibus-setup-unikey PRIVATE -rdynamic)
 
 install(TARGETS ibus-setup-unikey DESTINATION ${LIBEXECDIR})
 install(FILES ibus-unikey.ui DESTINATION ${PKGDATADIR}/ui)
