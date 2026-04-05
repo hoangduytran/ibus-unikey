@@ -5,7 +5,7 @@ extern "C"
     G_MODULE_EXPORT void on_main_window_destroy(GtkWidget* w, gpointer user_data);
     G_MODULE_EXPORT gboolean on_main_window_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer data);
     G_MODULE_EXPORT void on_btn_close_clicked(GtkButton* btn, gpointer user_data);
-    
+
     G_MODULE_EXPORT void on_setting_toggled(GtkToggleButton* btn, gpointer user_data);
     G_MODULE_EXPORT void on_setting_realize(GtkToggleButton* btn, gpointer user_data);
 
@@ -31,5 +31,5 @@ extern "C"
     G_MODULE_EXPORT void on_cell_value_edited(GtkCellRendererText *celltext,
                      const gchar *string_path,
                      const gchar *newvalue,
-                     gpointer data);
+                     gpointer user_data);
 }
