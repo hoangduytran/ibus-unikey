@@ -36,17 +36,17 @@
 #include "vnlexi.h"
 
 #if defined(_WIN32)
-    #define DllExport   __declspec( dllexport )
-    #define DllImport   __declspec( dllimport )
-    #if defined(UNIKEYHOOK)
-        #define DllInterface   __declspec( dllexport )
-    #else
-        #define DllInterface   __declspec( dllimport )
-    #endif
+#define DllExport __declspec(dllexport)
+#define DllImport __declspec(dllimport)
+#if defined(UNIKEYHOOK)
+#define DllInterface __declspec(dllexport)
 #else
-    #define DllInterface //not used
-    #define DllExport
-    #define DllImport
+#define DllInterface __declspec(dllimport)
+#endif
+#else
+#define DllInterface // not used
+#define DllExport
+#define DllImport
 #endif
 
 /**
@@ -55,84 +55,133 @@
  * The event classification allows the input processor to choose the right
  * modification strategy for tones, bowls, hooks, and other Vietnamese marks.
  */
-enum UkKeyEvName {
+enum UkKeyEvName
+{
   /**
-   * Roof mark event on any vowel (â, ê, ô). Used when the input processor
-   * needs to handle roof-type diacritics generically.
+   * Roof mark event on any roofable vowel.
+   * Example: `oo` or `OO` → `ô`, `ee` → `ê`, `aa` → `â`
    */
   vneRoofAll,
 
-  /** Roof mark on 'a' vowel (â). */
+  /**
+   * Roof mark on 'a' vowel.
+   * Example: `aa` → `â`
+   */
   vneRoof_a,
-  /** Roof mark on 'e' vowel (ê). */
+  /**
+   * Roof mark on 'e' vowel.
+   * Example: `ee` → `ê`
+   */
   vneRoof_e,
-  /** Roof mark on 'o' vowel (ô). */
+  /**
+   * Roof mark on 'o' vowel.
+   * Example: `oo` → `ô`
+   */
   vneRoof_o,
 
-  /** Hook mark event for all hookable vowels (ơ, ư). */
+  /**
+   * Hook mark event for all hookable vowels.
+   * Example: `uw` → `ư`, `ow` → `ơ`
+   */
   vneHookAll,
-  /** Hook mark on 'uơ' vowel variant. */
+  /**
+   * Hook mark on the `uơ` vowel variant.
+   * Example: `u7` or `uw` in some IMs → `ư`
+   */
   vneHook_uo,
-  /** Hook mark on 'u' vowel (ư). */
+  /**
+   * Hook mark on 'u'.
+   * Example: `uw` → `ư`
+   */
   vneHook_u,
-  /** Hook mark on 'o' vowel (ơ). */
+  /**
+   * Hook mark on 'o'.
+   * Example: `ow` → `ơ`
+   */
   vneHook_o,
 
-  /** Bowl shape modifier (ă, ơ, etc.). */
+  /**
+   * Bowl shape modifier used for `ă` and related variants.
+   * Example: `a8` or `a(` → `ă`
+   */
   vneBowl,
 
-  /** special doubled consonant event for 'đ'. */
+  /**
+   * Special doubled consonant event for `đ`.
+   * Example: `dd` → `đ`
+   */
   vneDd,
 
-  /** No tone (default) */
+  /** No tone / tone removed. */
   vneTone0,
-  /** Acute tone (sắc) */
+  /** Acute tone (sắc). Example: `as` → `á`. */
   vneTone1,
-  /** Grave tone (huyền) */
+  /** Grave tone (huyền). Example: `af` → `à`. */
   vneTone2,
-  /** Hook (hỏi) */
+  /** Hook tone (hỏi). Example: `ar` → `ả`. */
   vneTone3,
-  /** Tilde (ngã) */
+  /** Tilde tone (ngã). Example: `ax` → `ã`. */
   vneTone4,
-  /** Dot (nặng) */
+  /** Dot tone (nặng). Example: `aj` → `ạ`. */
   vneTone5,
 
-  /** Telex special 'w' handling technique (e.g., 'aw' -> 'ă'). */
+  /**
+   * Telex special `w` handling technique.
+   * Example: `aw` → `ă`, `ow` → `ơ`, `uw` → `ư`
+   */
   vne_telex_w,
 
-  /** Mapping keys that produce explicit letters instead of diacritics. */
+  /**
+   * Explicit mapping to a Vietnamese symbol instead of a diacritic action.
+   * Example: direct `[` → `ô` or `]` → `ư`
+   */
   vneMapChar,
 
-  /** Escape or cancel input rule (e.g., treat as raw character). */
+  /**
+   * Escape or cancel input rule, used to treat a marker as a raw character.
+   */
   vneEscChar,
 
-  /** Normal key, no special Vietnamese event mapping. */
+  /** Normal key: no Vietnamese event mapping. */
   vneNormal,
 
   /** Number of UkKeyEvName values; useful for table sizing. */
   vneCount
 };
 
-enum UkCharType {
-  /** Vietnamese character; may receive tone mark or accent */
+enum UkCharType
+{
+  /**
+   * Vietnamese character that can receive diacritics / tones.
+   * Example: `a`, `á`, `â`, `ơ`, `đ`
+   */
   ukcVn,
-  /** Word boundary (space, punctuation, etc.) */
+  /**
+   * Word boundary character such as space or punctuation.
+   * Example: ` `, `,`, `.`
+   */
   ukcWordBreak,
-  /** Non-Vietnamese, normal character */
+  /**
+   * Non-Vietnamese character that is treated as ordinary input.
+   * Example: `1`, `@`, `z` outside Vietnamese composition.
+   */
   ukcNonVn,
-  /** Reset state (special fallback) */
+  /**
+   * Reset/fallback state used during classifier initialization.
+   */
   ukcReset
 };
 
 /**
  * @brief Key classification event used by the input processor.
  */
-struct UkKeyEvent {
-  int evType;          ///< UkKeyEvName event type
-  UkCharType chType;   ///< Character classification
-  VnLexiName vnSym;    ///< Vietnamese shape symbol (only for ukcVn)
-  unsigned int keyCode;///< Physical key code
-  int tone;            ///< Tone value for vowels
+struct UkKeyEvent
+{
+  int evType;           ///< UkKeyEvName event type
+  UkCharType chType;    ///< Character classification
+  VnLexiName vnSym;     ///< Vietnamese shape symbol (only for ukcVn)
+  unsigned int keyCode; ///< Physical key code
+  int tone;             ///< Tone value for vowels
 };
 
 /**
@@ -146,21 +195,22 @@ struct UkKeyEvent {
  * - action should be a value from the current input method action table, where
  *   special sentinel values indicate no-op or mode change.
  */
-struct UkKeyMapping {
-    /**
-     * @brief Raw input key code (unsigned) for mapping.
-     *
-     * Typically 0..255, taken from keyboard scan/character input layer.
-     */
-    unsigned char key;
+struct UkKeyMapping
+{
+  /**
+   * @brief Raw input key code (unsigned) for mapping.
+   *
+   * Typically 0..255, taken from keyboard scan/character input layer.
+   */
+  unsigned char key;
 
-    /**
-     * @brief Action code to execute for this key.
-     *
-     * The exact meaning is method-specific and resolved by UkInputProcessor
-     * to set event types (e.g., vneRoof_a) or character insertion descriptors.
-     */
-    int action;
+  /**
+   * @brief Action code to execute for this key.
+   *
+   * The exact meaning is method-specific and resolved by UkInputProcessor
+   * to set event types (e.g., vneRoof_a) or character insertion descriptors.
+   */
+  int action;
 };
 
 ///////////////////////////////////////////
@@ -170,7 +220,8 @@ struct UkKeyMapping {
  * Handles input method selection, character classification, and key-to-event
  * conversion according to a selected keyboard layout (Telex, VNI, etc.).
  */
-class UkInputProcessor {
+class UkInputProcessor
+{
 
 public:
   /**
@@ -179,7 +230,7 @@ public:
    * NOTE: This object may be placed in shared memory. Avoid constructing
    * heavy members here, and use init() to establish necessary state.
    */
-  //UkInputProcessor();
+  // UkInputProcessor();
 
   /**
    * @brief Initialize internal mapping tables and static state.
@@ -200,12 +251,12 @@ public:
    * @param keyCode Raw key code from keyboard input.
    * @param[out] ev Populated UkKeyEvent with event details.
    */
-  void keyCodeToEvent(unsigned int keyCode, UkKeyEvent & ev);
+  void keyCodeToEvent(unsigned int keyCode, UkKeyEvent &ev);
 
   /**
    * @brief Convert keycode into symbolic event (e.g., diacritic character mapping).
    */
-  void keyCodeToSymbol(unsigned int keyCode, UkKeyEvent & ev);
+  void keyCodeToSymbol(unsigned int keyCode, UkKeyEvent &ev);
 
   /**
    * @brief Set active input method by enum.
@@ -232,8 +283,8 @@ public:
 protected:
   static bool m_classInit; ///< Class-level initialization guard
 
-  UkInputMethod m_im;     ///< Current input method
-  int m_keyMap[256];      ///< Current key map lookup table
+  UkInputMethod m_im; ///< Current input method
+  int m_keyMap[256];  ///< Current key map lookup table
 
   /**
    * @brief Populate m_keyMap using built-in method mapping.
@@ -241,7 +292,6 @@ protected:
    * @param map Null-terminated method map.
    */
   void useBuiltIn(UkKeyMapping *map);
-
 };
 
 /**
@@ -305,7 +355,7 @@ extern VnLexiName IsoVnLexiMap[];
  */
 inline VnLexiName IsoToVnLexi(unsigned int keyCode)
 {
-    return (keyCode >= 256)? vnl_nonVnChar : IsoVnLexiMap[keyCode];
+  return (keyCode >= 256) ? vnl_nonVnChar : IsoVnLexiMap[keyCode];
 }
 
 #endif

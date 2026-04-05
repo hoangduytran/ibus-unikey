@@ -31,310 +31,336 @@
  * Defines canonical Vietnamese alphabet codes and composition sequence ids.
  */
 
-enum VnLexiName {
-  vnl_nonVnChar = -1,
-  vnl_A,
-  vnl_a,
-  vnl_A1,
-  vnl_a1,
-  vnl_A2,
-  vnl_a2,
-  vnl_A3,
-  vnl_a3,
-  vnl_A4,
-  vnl_a4,
-  vnl_A5,
-  vnl_a5,
-  vnl_Ar,
-  vnl_ar,
-  vnl_Ar1,
-  vnl_Ar2,
-  vnl_ar2,
-  vnl_Ar3,
-  vnl_ar3,
-  vnl_Ar4,
-  vnl_ar4,
-  vnl_Ar5,
-  vnl_ar5,
-  vnl_Ab,
-  vnl_ab,
-  vnl_Ab1,
-  vnl_ab1,
-  vnl_Ab2,
-  vnl_ab2,
-  vnl_Ab3,
-  vnl_ab3,
-  vnl_Ab4,
-  vnl_ab4,
-  vnl_Ab5,
-  vnl_ab5,
-  vnl_B,
-  vnl_b,
-  vnl_C,
-  vnl_c,
-  vnl_D,
-  vnl_d,
-  vnl_DD,
-  vnl_dd,
-  vnl_E,
-  vnl_e,
-  vnl_E1,
-  vnl_e1,
-  vnl_E2,
-  vnl_e2,
-  vnl_E3,
-  vnl_e3,
-  vnl_E4,
-  vnl_e4,
-  vnl_E5,
-  vnl_e5,
-  vnl_Er,
-  vnl_er,
-  vnl_Er1,
-  vnl_er1,
-  vnl_Er2,
-  vnl_er2,
-  vnl_Er3,
-  vnl_er3,
-  vnl_Er4,
-  vnl_er4,
-  vnl_Er5,
-  vnl_er5,
-  vnl_F,
-  vnl_f,
-  vnl_G,
-  vnl_g,
-  vnl_H,
-  vnl_h,
-  vnl_I,
-  vnl_i,
-  vnl_I1,
-  vnl_i1,
-  vnl_I2,
-  vnl_i2,
-  vnl_I3,
-  vnl_i3,
-  vnl_I4,
-  vnl_i4,
-  vnl_I5,
-  vnl_i5,
-  vnl_J,
-  vnl_j,
-  vnl_K,
-  vnl_k,
-  vnl_L,
-  vnl_l,
-  vnl_M,
-  vnl_m,
-  vnl_N,
-  vnl_n,
-  vnl_O,
-  vnl_o,
-  vnl_O1,
-  vnl_o1,
-  vnl_O2,
-  vnl_o2,
-  vnl_O3,
-  vnl_o3,
-  vnl_O4,
-  vnl_o4,
-  vnl_O5,
-  vnl_o5,
-  vnl_Or,
-  vnl_or,
-  vnl_Or1,
-  vnl_or1,
-  vnl_Or2,
-  vnl_or2,
-  vnl_Or3,
-  vnl_or3,
-  vnl_Or4,
-  vnl_or4,
-  vnl_Or5,
-  vnl_or5,
-  vnl_Oh,
-  vnl_oh,
-  vnl_Oh1,
-  vnl_oh1,
-  vnl_Oh2,
-  vnl_oh2,
-  vnl_Oh3,
-  vnl_oh3,
-  vnl_Oh4,
-  vnl_oh4,
-  vnl_Oh5,
-  vnl_oh5,
-  vnl_P,
-  vnl_p,
-  vnl_Q,
-  vnl_q,
-  vnl_R,
-  vnl_r,
-  vnl_S,
-  vnl_s,
-  vnl_T,
-  vnl_t,
-  vnl_U,
-  vnl_u,
-  vnl_U1,
-  vnl_u1,
-  vnl_U2,
-  vnl_u2,
-  vnl_U3,
-  vnl_u3,
-  vnl_U4,
-  vnl_u4,
-  vnl_U5,
-  vnl_u5,
-  vnl_Uh,
-  vnl_uh,
-  vnl_Uh1,
-  vnl_uh1,
-  vnl_Uh2,
-  vnl_uh2,
-  vnl_Uh3,
-  vnl_uh3,
-  vnl_Uh4,
-  vnl_uh4,
-  vnl_Uh5,
-  vnl_uh5,
-  vnl_V,
-  vnl_v,
-  vnl_W,
-  vnl_w,
-  vnl_X,
-  vnl_x,
-  vnl_Y,
-  vnl_y,
-  vnl_Y1,
-  vnl_y1,
-  vnl_Y2,
-  vnl_y2,
-  vnl_Y3,
-  vnl_y3,
-  vnl_Y4,
-  vnl_y4,
-  vnl_Y5,
-  vnl_y5,
-  vnl_Z,
-  vnl_z,
-  vnl_lastChar,
+enum VnLexiName
+{
+  vnl_nonVnChar = -1, ///< Not a Vietnamese symbol; used when input is non-VN.
+
+  // Plain Latin letters used as the base forms for Vietnamese composition.
+  vnl_A, ///< Uppercase A
+  vnl_a, ///< Lowercase a
+
+  // A with tone marks.
+  vnl_A1, ///< Á (uppercase A + sắc)
+  vnl_a1, ///< á
+  vnl_A2, ///< À (uppercase A + huyền)
+  vnl_a2, ///< à
+  vnl_A3, ///< Ả (uppercase A + hỏi)
+  vnl_a3, ///< ả
+  vnl_A4, ///< Ã (uppercase A + ngã)
+  vnl_a4, ///< ã
+  vnl_A5, ///< Ạ (uppercase A + nặng)
+  vnl_a5, ///< ạ
+
+  // Â variants.
+  vnl_Ar,  ///< Â (uppercase A with roof)
+  vnl_ar,  ///< â
+  vnl_Ar1, ///< Ấ (Â + sắc)
+  vnl_Ar2, ///< Ầ (Â + huyền)
+  vnl_ar2, ///< ầ
+  vnl_Ar3, ///< Ẩ (Â + hỏi)
+  vnl_ar3, ///< ẩ
+  vnl_Ar4, ///< Ẫ (Â + ngã)
+  vnl_ar4, ///< ẫ
+  vnl_Ar5, ///< Ậ (Â + nặng)
+  vnl_ar5, ///< ậ
+
+  // Ă variants.
+  vnl_Ab,  ///< Ă (uppercase A with bowl)
+  vnl_ab,  ///< ă
+  vnl_Ab1, ///< Ắ (Ă + sắc)
+  vnl_ab1, ///< ắ
+  vnl_Ab2, ///< Ằ (Ă + huyền)
+  vnl_ab2, ///< ằ
+  vnl_Ab3, ///< Ẳ (Ă + hỏi)
+  vnl_ab3, ///< ẳ
+  vnl_Ab4, ///< Ẵ (Ă + ngã)
+  vnl_ab4, ///< ẵ
+  vnl_Ab5, ///< Ặ (Ă + nặng)
+  vnl_ab5, ///< ặ
+
+  vnl_B,  ///< Uppercase B
+  vnl_b,  ///< Lowercase b
+  vnl_C,  ///< Uppercase C
+  vnl_c,  ///< Lowercase c
+  vnl_D,  ///< Uppercase D
+  vnl_d,  ///< Lowercase d
+  vnl_DD, ///< Uppercase Đ
+  vnl_dd, ///< Lowercase đ
+
+  vnl_E,  ///< Uppercase E
+  vnl_e,  ///< Lowercase e
+  vnl_E1, ///< É (uppercase E + sắc)
+  vnl_e1, ///< é
+  vnl_E2, ///< È (uppercase E + huyền)
+  vnl_e2, ///< è
+  vnl_E3, ///< Ẻ (uppercase E + hỏi)
+  vnl_e3, ///< ẻ
+  vnl_E4, ///< Ẽ (uppercase E + ngã)
+  vnl_e4, ///< ẽ
+  vnl_E5, ///< Ẹ (uppercase E + nặng)
+  vnl_e5, ///< ẹ
+
+  vnl_Er,  ///< Ê (uppercase E with roof)
+  vnl_er,  ///< ê
+  vnl_Er1, ///< Ế (Ê + sắc)
+  vnl_er1, ///< ế
+  vnl_Er2, ///< Ề (Ê + huyền)
+  vnl_er2, ///< ề
+  vnl_Er3, ///< Ể (Ê + hỏi)
+  vnl_er3, ///< ể
+  vnl_Er4, ///< Ễ (Ê + ngã)
+  vnl_er4, ///< ễ
+  vnl_Er5, ///< Ệ (Ê + nặng)
+  vnl_er5, ///< ệ
+
+  vnl_F, ///< Uppercase F
+  vnl_f, ///< Lowercase f
+  vnl_G, ///< Uppercase G
+  vnl_g, ///< Lowercase g
+  vnl_H, ///< Uppercase H
+  vnl_h, ///< Lowercase h
+
+  vnl_I,  ///< Uppercase I
+  vnl_i,  ///< Lowercase i
+  vnl_I1, ///< Í (uppercase I + sắc)
+  vnl_i1, ///< í
+  vnl_I2, ///< Ì (uppercase I + huyền)
+  vnl_i2, ///< ì
+  vnl_I3, ///< Ỉ (uppercase I + hỏi)
+  vnl_i3, ///< ỉ
+  vnl_I4, ///< Ĩ (uppercase I + ngã)
+  vnl_i4, ///< ĩ
+  vnl_I5, ///< Ị (uppercase I + nặng)
+  vnl_i5, ///< ị
+
+  vnl_J, ///< Uppercase J
+  vnl_j, ///< Lowercase j
+  vnl_K, ///< Uppercase K
+  vnl_k, ///< Lowercase k
+  vnl_L, ///< Uppercase L
+  vnl_l, ///< Lowercase l
+  vnl_M, ///< Uppercase M
+  vnl_m, ///< Lowercase m
+  vnl_N, ///< Uppercase N
+  vnl_n, ///< Lowercase n
+
+  vnl_O,  ///< Uppercase O
+  vnl_o,  ///< Lowercase o
+  vnl_O1, ///< Ó (uppercase O + sắc)
+  vnl_o1, ///< ó
+  vnl_O2, ///< Ò (uppercase O + huyền)
+  vnl_o2, ///< ò
+  vnl_O3, ///< Ỏ (uppercase O + hỏi)
+  vnl_o3, ///< ỏ
+  vnl_O4, ///< Õ (uppercase O + ngã)
+  vnl_o4, ///< õ
+  vnl_O5, ///< Ọ (uppercase O + nặng)
+  vnl_o5, ///< ọ
+
+  vnl_Or,  ///< Ô (uppercase O with roof)
+  vnl_or,  ///< ô
+  vnl_Or1, ///< Ố (Ô + sắc)
+  vnl_or1, ///< ố
+  vnl_Or2, ///< Ồ (Ô + huyền)
+  vnl_or2, ///< ồ
+  vnl_Or3, ///< Ổ (Ô + hỏi)
+  vnl_or3, ///< ổ
+  vnl_Or4, ///< Ỗ (Ô + ngã)
+  vnl_or4, ///< ỗ
+  vnl_Or5, ///< Ộ (Ô + nặng)
+  vnl_or5, ///< ộ
+
+  vnl_Oh,  ///< Ơ (uppercase O with hook)
+  vnl_oh,  ///< ơ
+  vnl_Oh1, ///< Ớ (Ơ + sắc)
+  vnl_oh1, ///< ớ
+  vnl_Oh2, ///< Ờ (Ơ + huyền)
+  vnl_oh2, ///< ờ
+  vnl_Oh3, ///< Ở (Ơ + hỏi)
+  vnl_oh3, ///< ở
+  vnl_Oh4, ///< Ỡ (Ơ + ngã)
+  vnl_oh4, ///< ỡ
+  vnl_Oh5, ///< Ợ (Ơ + nặng)
+  vnl_oh5, ///< ợ
+
+  vnl_P, ///< Uppercase P
+  vnl_p, ///< Lowercase p
+  vnl_Q, ///< Uppercase Q
+  vnl_q, ///< Lowercase q
+  vnl_R, ///< Uppercase R
+  vnl_r, ///< Lowercase r
+  vnl_S, ///< Uppercase S
+  vnl_s, ///< Lowercase s
+  vnl_T, ///< Uppercase T
+  vnl_t, ///< Lowercase t
+
+  vnl_U,  ///< Uppercase U
+  vnl_u,  ///< Lowercase u
+  vnl_U1, ///< Ú (uppercase U + sắc)
+  vnl_u1, ///< ú
+  vnl_U2, ///< Ù (uppercase U + huyền)
+  vnl_u2, ///< ù
+  vnl_U3, ///< Ủ (uppercase U + hỏi)
+  vnl_u3, ///< ủ
+  vnl_U4, ///< Ũ (uppercase U + ngã)
+  vnl_u4, ///< ũ
+  vnl_U5, ///< Ụ (uppercase U + nặng)
+  vnl_u5, ///< ụ
+
+  vnl_Uh,  ///< Ư (uppercase U with hook)
+  vnl_uh,  ///< ư
+  vnl_Uh1, ///< Ứ (Ư + sắc)
+  vnl_uh1, ///< ứ
+  vnl_Uh2, ///< Ừ (Ư + huyền)
+  vnl_uh2, ///< ừ
+  vnl_Uh3, ///< Ử (Ư + hỏi)
+  vnl_uh3, ///< ử
+  vnl_Uh4, ///< Ữ (Ư + ngã)
+  vnl_uh4, ///< ữ
+  vnl_Uh5, ///< Ự (Ư + nặng)
+  vnl_uh5, ///< ự
+
+  vnl_V,  ///< Uppercase V
+  vnl_v,  ///< Lowercase v
+  vnl_W,  ///< Uppercase W
+  vnl_w,  ///< Lowercase w
+  vnl_X,  ///< Uppercase X
+  vnl_x,  ///< Lowercase x
+  vnl_Y,  ///< Uppercase Y
+  vnl_y,  ///< Lowercase y
+  vnl_Y1, ///< Ý (uppercase Y + sắc)
+  vnl_y1, ///< ý
+  vnl_Y2, ///< Ỳ (uppercase Y + huyền)
+  vnl_y2, ///< ỳ
+  vnl_Y3, ///< Ỷ (uppercase Y + hỏi)
+  vnl_y3, ///< ỷ
+  vnl_Y4, ///< Ỹ (uppercase Y + ngã)
+  vnl_y4, ///< ỹ
+  vnl_Y5, ///< Ỵ (uppercase Y + nặng)
+  vnl_y5, ///< ỵ
+  vnl_Z,  ///< Uppercase Z
+  vnl_z,  ///< Lowercase z
+
+  vnl_lastChar, ///< Sentinel value marking the end of the Vietnamese symbol list.
 };
 
 /**
  * @brief Sequence identifiers for Vietnamese vowel clusters.
  */
-enum VowelSeq {
-  vs_nil = -1,
-  vs_a,
-  vs_ar,
-  vs_ab,
-  vs_e,
-  vs_er,
-  vs_i,
-  vs_o,
-  vs_or,
-  vs_oh,
-  vs_u,
-  vs_uh,
-  vs_y,
-  vs_ai,
-  vs_ao,
-  vs_au,
-  vs_ay,
-  vs_aru,
-  vs_ary,
-  vs_eo,
-  vs_eu,
-  vs_eru,
-  vs_ia,
-  vs_ie,
-  vs_ier,
-  vs_iu,
-  vs_oa,
-  vs_oab,
-  vs_oe,
-  vs_oi,
-  vs_ori,
-  vs_ohi,
-  vs_ua,
-  vs_uar,
-  vs_ue,
-  vs_uer,
-  vs_ui,
-  vs_uo,
-  vs_uor,
-  vs_uoh,
-  vs_uu,
-  vs_uy,
-  vs_uha,
-  vs_uhi,
-  vs_uho,
-  vs_uhoh,
-  vs_uhu,
-  vs_ye,
-  vs_yer,
-  vs_ieu,
-  vs_ieru,
-  vs_oai,
-  vs_oay,
-  vs_oeo,
-  vs_uay,
-  vs_uary,
-  vs_uoi,
-  vs_uou,
-  vs_uori,
-  vs_uohi,
-  vs_uohu,
-  vs_uya,
-  vs_uye,
-  vs_uyer,
-  vs_uyu,
-  vs_uhoi,
-  vs_uhou,
-  vs_uhohi,
-  vs_uhohu,
-  vs_yeu,
-  vs_yeru
+enum VowelSeq
+{
+  vs_nil = -1, ///< No valid vowel sequence.
+
+  vs_a,  ///< Single vowel a / A.
+  vs_ar, ///< Roofed a: â / Â.
+  vs_ab, ///< Bowled a: ă / Ă.
+  vs_e,  ///< Single vowel e / E.
+  vs_er, ///< Roofed e: ê / Ê.
+  vs_i,  ///< Single vowel i / I.
+  vs_o,  ///< Single vowel o / O.
+  vs_or, ///< Roofed o: ô / Ô.
+  vs_oh, ///< Hooked o: ơ / Ơ.
+  vs_u,  ///< Single vowel u / U.
+  vs_uh, ///< Hooked u: ư / Ư.
+  vs_y,  ///< Single vowel y / Y.
+
+  vs_ai,    ///< Diphthong ai.
+  vs_ao,    ///< Diphthong ao.
+  vs_au,    ///< Diphthong au.
+  vs_ay,    ///< Diphthong ay.
+  vs_aru,   ///< Sequence âu / Âu.
+  vs_ary,   ///< Sequence ây / Ây.
+  vs_eo,    ///< Diphthong eo.
+  vs_eu,    ///< Diphthong eu.
+  vs_eru,   ///< Sequence êu / Êu.
+  vs_ia,    ///< Sequence ia.
+  vs_ie,    ///< Sequence ie.
+  vs_ier,   ///< Sequence iê / Iê.
+  vs_iu,    ///< Sequence iu.
+  vs_oa,    ///< Sequence oa.
+  vs_oab,   ///< Sequence oă / Oă.
+  vs_oe,    ///< Sequence oe.
+  vs_oi,    ///< Sequence oi.
+  vs_ori,   ///< Sequence ôi / Ôi.
+  vs_ohi,   ///< Sequence ơi / Ới.
+  vs_ua,    ///< Sequence ua.
+  vs_uar,   ///< Sequence uar / Uar.
+  vs_ue,    ///< Sequence uê / Uê.
+  vs_uer,   ///< Sequence uer / Uer.
+  vs_ui,    ///< Sequence ui.
+  vs_uo,    ///< Sequence uo.
+  vs_uor,   ///< Sequence uô / Uô.
+  vs_uoh,   ///< Sequence uơ / Uơ.
+  vs_uu,    ///< Sequence uu.
+  vs_uy,    ///< Sequence uy.
+  vs_uha,   ///< Sequence ưa / Ưa.
+  vs_uhi,   ///< Sequence ươi / Ưi.
+  vs_uho,   ///< Sequence ươ / Ươ.
+  vs_uhoh,  ///< Sequence ươ̛? (complex hook/roof combination)
+  vs_uhu,   ///< Sequence ưu / Ưu.
+  vs_ye,    ///< Sequence ye.
+  vs_yer,   ///< Sequence yê / Yê.
+  vs_ieu,   ///< Sequence ieu.
+  vs_ieru,  ///< Sequence iêu / Iêu.
+  vs_oai,   ///< Sequence oai.
+  vs_oay,   ///< Sequence oay.
+  vs_oeo,   ///< Sequence oe o? (rare vowel cluster)
+  vs_uay,   ///< Sequence uay.
+  vs_uary,  ///< Sequence uary.
+  vs_uoi,   ///< Sequence uoi.
+  vs_uou,   ///< Sequence uou.
+  vs_uori,  ///< Sequence uô i / Uô i.
+  vs_uohi,  ///< Sequence uơ i / Uơ i.
+  vs_uohu,  ///< Sequence uơ u / Uơ u.
+  vs_uya,   ///< Sequence uya.
+  vs_uye,   ///< Sequence uye.
+  vs_uyer,  ///< Sequence uyer.
+  vs_uyu,   ///< Sequence uyu.
+  vs_uhoi,  ///< Sequence uhoi.
+  vs_uhou,  ///< Sequence uhou.
+  vs_uhohi, ///< Sequence uhohi.
+  vs_uhohu, ///< Sequence uhohu.
+  vs_yeu,   ///< Sequence yeu.
+  vs_yeru   ///< Sequence yeru.
 };
 
 /**
  * @brief Sequence identifiers for Vietnamese consonant clusters.
  */
-enum ConSeq {
-  cs_nil = -1,
-  cs_b,
-  cs_c,
-  cs_ch,
-  cs_d,
-  cs_dd,
-  cs_dz,
-  cs_g,
-  cs_gh,
-  cs_gi,
-  cs_gin,
-  cs_h,
-  cs_k,
-  cs_kh,
-  cs_l,
-  cs_m,
-  cs_n,
-  cs_ng,
-  cs_ngh,
-  cs_nh,
-  cs_p,
-  cs_ph,
-  cs_q,
-  cs_qu,
-  cs_r,
-  cs_s,
-  cs_t,
-  cs_th,
-  cs_tr,
-  cs_v,
-  cs_x
+enum ConSeq
+{
+  cs_nil = -1, ///< No valid consonant sequence.
+
+  cs_b,   ///< Single consonant b.
+  cs_c,   ///< Single consonant c.
+  cs_ch,  ///< Consonant cluster ch.
+  cs_d,   ///< Single consonant d.
+  cs_dd,  ///< Consonant đ.
+  cs_dz,  ///< Consonant cluster dz.
+  cs_g,   ///< Single consonant g.
+  cs_gh,  ///< Consonant cluster gh.
+  cs_gi,  ///< Consonant cluster gi.
+  cs_gin, ///< Consonant cluster gin.
+  cs_h,   ///< Single consonant h.
+  cs_k,   ///< Single consonant k.
+  cs_kh,  ///< Consonant cluster kh.
+  cs_l,   ///< Single consonant l.
+  cs_m,   ///< Single consonant m.
+  cs_n,   ///< Single consonant n.
+  cs_ng,  ///< Consonant cluster ng.
+  cs_ngh, ///< Consonant cluster ngh.
+  cs_nh,  ///< Consonant cluster nh.
+  cs_p,   ///< Single consonant p.
+  cs_ph,  ///< Consonant cluster ph.
+  cs_q,   ///< Single consonant q.
+  cs_qu,  ///< Consonant cluster qu.
+  cs_r,   ///< Single consonant r.
+  cs_s,   ///< Single consonant s.
+  cs_t,   ///< Single consonant t.
+  cs_th,  ///< Consonant cluster th.
+  cs_tr,  ///< Consonant cluster tr.
+  cs_v,   ///< Single consonant v.
+  cs_x    ///< Single consonant x.
 };
-
-
 
 #endif
