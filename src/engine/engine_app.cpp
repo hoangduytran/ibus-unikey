@@ -1,3 +1,11 @@
+/**
+ * @file engine_app.cpp
+ * @brief Implements the Unikey IBus engine application startup and component
+ *        registration.
+ *
+ * This module handles command-line options, locale initialization, IBus
+ * component construction, and the main engine event loop.
+ */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -15,13 +23,39 @@
 
 #define _(string) gettext(string)
 
+/**
+ * @brief Shared IBus connection instance used by the engine.
+ *
+ * Initialized in start_component() and reused for the lifetime of the app.
+ */
 static IBusBus* bus = NULL;
+
+/**
+ * @brief Factory used to register and manage engine descriptors.
+ */
 static IBusFactory* factory = NULL;
 
+/**
+ * @brief When TRUE, print engine XML metadata instead of starting the engine.
+ */
 static gboolean xml = FALSE;
+
+/**
+ * @brief When TRUE, the application is being run by IBus directly.
+ */
 static gboolean ibus = FALSE;
+
+/**
+ * @brief When TRUE, verbose output is enabled for debugging.
+ */
 static gboolean verbose = FALSE;
 
+/**
+ * @brief Command-line options recognized by the engine application.
+ *
+ * These options are parsed by GLib's GOptionContext and control whether the
+ * application prints engine metadata, runs under IBus, or enables verbosity.
+ */
 static const GOptionEntry entries[] =
 {
     { "xml",     'x', 0, G_OPTION_ARG_NONE, &xml,     "generate xml for engines", NULL },
@@ -32,11 +66,24 @@ static const GOptionEntry entries[] =
 
 static IBusComponent* ibus_unikey_get_component();
 
+/**
+ * @brief Callback invoked when the IBus bus disconnects.
+ *
+ * @param bus Unused IBusBus instance pointer supplied by the signal.
+ * @param user_data Opaque user data supplied by g_signal_connect().
+ */
 static void ibus_disconnected_cb(IBusBus* bus, gpointer user_data)
 {
     ibus_quit();
 }
 
+/**
+ * @brief Starts the Unikey IBus engine component.
+ *
+ * This function initializes the IBus context, registers the Unikey engine
+ * component or request name depending on the invocation mode, then enters the
+ * IBus main loop.
+ */
 static void start_component(void)
 {
     GList* engines;
@@ -71,6 +118,11 @@ static void start_component(void)
     ibus_unikey_exit();
 }
 
+/**
+ * @brief Prints the Unikey engine XML metadata.
+ *
+ * This is used by IBus when querying available engine components.
+ */
 static void print_engines_xml(void)
 {
     IBusComponent* component;
@@ -88,6 +140,16 @@ static void print_engines_xml(void)
     g_string_free(output, TRUE);
 }
 
+/**
+ * @brief Main entrypoint for the Unikey engine application.
+ *
+ * Parses command-line options, initializes locale support, and either prints
+ * engine metadata or starts the runtime component.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Array of argument strings.
+ * @return Always returns 0 on normal termination.
+ */
 int ibus_unikey_engine_app_main(int argc, char** argv)
 {
     GError* error = NULL;
@@ -117,6 +179,12 @@ int ibus_unikey_engine_app_main(int argc, char** argv)
     return 0;
 }
 
+/**
+ * @brief Long description text shown in the IBus engine descriptor.
+ *
+ * This string is localized through gettext and describes usage instructions
+ * for the Unikey input method engine.
+ */
 #define IU_DESC _("Vietnamese Input Method Engine for IBus using Unikey Engine\n\
 Usage:\n\
   - Choose input method, output charset, options in language bar.\n\
@@ -124,9 +192,16 @@ Usage:\n\
 and STelex2 (which same as STelex, the difference is it use w as ư).\n\
   - And 7 output charsets: Unicode (UTF-8), TCVN3, VNI Win, VIQR, CString, NCR Decimal and NCR Hex.\n\
   - Use <Shift>+<Space> or <Shift>+<Shift> to restore keystrokes.\n\
-  - Use <Control> to commit a word.\
-")
+  - Use <Control> to commit a word.\n")
 
+/**
+ * @brief Creates and returns the IBus component representing Unikey.
+ *
+ * The caller owns the returned IBusComponent and must release it with
+ * g_object_unref() after use.
+ *
+ * @return New IBusComponent instance describing the Unikey engine.
+ */
 static IBusComponent* ibus_unikey_get_component()
 {
     IBusComponent* component;
