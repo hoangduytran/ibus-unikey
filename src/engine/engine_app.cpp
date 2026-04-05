@@ -28,12 +28,12 @@
  *
  * Initialized in start_component() and reused for the lifetime of the app.
  */
-static IBusBus* bus = NULL;
+static IBusBus *bus = NULL;
 
 /**
  * @brief Factory used to register and manage engine descriptors.
  */
-static IBusFactory* factory = NULL;
+static IBusFactory *factory = NULL;
 
 /**
  * @brief When TRUE, print engine XML metadata instead of starting the engine.
@@ -57,14 +57,14 @@ static gboolean verbose = FALSE;
  * application prints engine metadata, runs under IBus, or enables verbosity.
  */
 static const GOptionEntry entries[] =
-{
-    { "xml",     'x', 0, G_OPTION_ARG_NONE, &xml,     "generate xml for engines", NULL },
-    { "ibus",    'i', 0, G_OPTION_ARG_NONE, &ibus,    "component is executed by ibus", NULL },
-    { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "verbose", NULL },
-    { NULL },
+    {
+        {"xml", 'x', 0, G_OPTION_ARG_NONE, &xml, "generate xml for engines", NULL},
+        {"ibus", 'i', 0, G_OPTION_ARG_NONE, &ibus, "component is executed by ibus", NULL},
+        {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "verbose", NULL},
+        {NULL},
 };
 
-static IBusComponent* ibus_unikey_get_component();
+static IBusComponent *ibus_unikey_get_component();
 
 /**
  * @brief Callback invoked when the IBus bus disconnects.
@@ -72,7 +72,7 @@ static IBusComponent* ibus_unikey_get_component();
  * @param bus Unused IBusBus instance pointer supplied by the signal.
  * @param user_data Opaque user data supplied by g_signal_connect().
  */
-static void ibus_disconnected_cb(IBusBus* bus, gpointer user_data)
+static void ibus_disconnected_cb(IBusBus *bus, gpointer user_data)
 {
     ibus_quit();
 }
@@ -86,9 +86,9 @@ static void ibus_disconnected_cb(IBusBus* bus, gpointer user_data)
  */
 static void start_component(void)
 {
-    GList* engines;
-    GList* p;
-    IBusComponent* component;
+    GList *engines;
+    GList *p;
+    IBusComponent *component;
 
     ibus_init();
 
@@ -102,7 +102,7 @@ static void start_component(void)
     engines = ibus_component_get_engines(component);
     for (p = engines; p != NULL; p = p->next)
     {
-        IBusEngineDesc* engine = (IBusEngineDesc*)p->data;
+        IBusEngineDesc *engine = (IBusEngineDesc *)p->data;
         ibus_factory_add_engine(factory, ibus_engine_desc_get_name(engine), IBUS_TYPE_UNIKEY_ENGINE);
     }
 
@@ -125,8 +125,8 @@ static void start_component(void)
  */
 static void print_engines_xml(void)
 {
-    IBusComponent* component;
-    GString* output;
+    IBusComponent *component;
+    GString *output;
 
     ibus_init();
 
@@ -150,10 +150,10 @@ static void print_engines_xml(void)
  * @param argv Array of argument strings.
  * @return Always returns 0 on normal termination.
  */
-int ibus_unikey_engine_app_main(int argc, char** argv)
+int ibus_unikey_engine_app_main(int argc, char **argv)
 {
-    GError* error = NULL;
-    GOptionContext* context;
+    GError *error = NULL;
+    GOptionContext *context;
 
     setlocale(LC_ALL, "");
     bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
@@ -163,7 +163,8 @@ int ibus_unikey_engine_app_main(int argc, char** argv)
 
     g_option_context_add_main_entries(context, entries, "ibus-unikey");
 
-    if (!g_option_context_parse(context, &argc, &argv, &error)) {
+    if (!g_option_context_parse(context, &argc, &argv, &error))
+    {
         g_print("Option parsing failed: %s\n", error->message);
         exit(-1);
     }
@@ -202,10 +203,10 @@ and STelex2 (which same as STelex, the difference is it use w as ư).\n\
  *
  * @return New IBusComponent instance describing the Unikey engine.
  */
-static IBusComponent* ibus_unikey_get_component()
+static IBusComponent *ibus_unikey_get_component()
 {
-    IBusComponent* component;
-    IBusEngineDesc* engine;
+    IBusComponent *component;
+    IBusEngineDesc *engine;
 
     component = ibus_component_new("org.freedesktop.IBus.Unikey",
                                    "Unikey component",
@@ -216,17 +217,17 @@ static IBusComponent* ibus_unikey_get_component()
                                    "",
                                    PACKAGE_NAME);
 
-    engine = ibus_engine_desc_new_varargs ("name",        "Unikey",
-                                           "longname",    "Unikey",
-                                           "description", IU_DESC,
-                                           "language",    "vi",
-                                           "license",     "GPLv3",
-                                           "author",      "Vietnamese input group",
-                                           "icon",        PKGDATADIR "/icons/ibus-unikey.svg",
-                                           "layout",      "*",
-                                           "rank",        99,
-                                           "setup",       LIBEXECDIR "/ibus-setup-unikey",
-                                           NULL);
+    engine = ibus_engine_desc_new_varargs("name", "Unikey",
+                                          "longname", "Unikey",
+                                          "description", IU_DESC,
+                                          "language", "vi",
+                                          "license", "GPLv3",
+                                          "author", "Vietnamese input group",
+                                          "icon", PKGDATADIR "/icons/ibus-unikey.svg",
+                                          "layout", "*",
+                                          "rank", 99,
+                                          "setup", LIBEXECDIR "/ibus-setup-unikey",
+                                          NULL);
 
     ibus_component_add_engine(component, engine);
 

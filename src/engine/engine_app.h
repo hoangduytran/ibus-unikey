@@ -17,6 +17,6 @@
  * @return Exit status code. Returns 0 on success; option parsing failures
  *         terminate the process with a non-zero status.
  */
-int ibus_unikey_engine_app_main(int argc, char** argv);
+int ibus_unikey_engine_app_main(int argc, char **argv);
 
 #endif // ENGINE_APP_H
