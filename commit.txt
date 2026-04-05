@@ -1,0 +1,19 @@
+Comment mapping headers in include/ukengine/mapping following code_comments.md style
+
+- Add file-level documentation to `include/ukengine/mapping/charset.h`, `keycons.h`, `mactab.h`, `vnconv.h`, `vnlexi.h`.
+- Add detailed comments for `VnCharset`, derived charset classes, and mapping constants in `charset.h`.
+- Comment input method enum and option flags in `keycons.h`.
+- Document `CMacroTable` operations and storage model in `mactab.h`.
+- Document conversion constants, API functions, error codes, and options in `vnconv.h`.
+- Add enum group semantics for `VnLexiName`, `VowelSeq`, and `ConSeq` in `vnlexi.h`.
+
+Reasoning:
+- Improve maintainability and readability of mapping/conversion abstractions.
+- Provide clear intent for mapping tables, option semantics and API errors.
+- Follow code comment guidelines in `.github/skills/development-guidelines/code_comments.md`.
+
+Validation:
+- `git diff` shows only comment and doc changes in include/ukengine/mapping headers.
+- `./mkme` still succeeds with no behavioral changes.
+- `ctest --output-on-failure` still passes.
+

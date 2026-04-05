@@ -50,7 +50,7 @@
       <description>Allow type with more freedom</description>
     </key>
     <key name="macro-enabled" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Use macro</summary>
       <description>Enable macro feature</description>
     </key>
