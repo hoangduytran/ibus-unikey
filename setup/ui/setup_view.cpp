@@ -1,9 +1,12 @@
 #include "setup_view.h"
 
+// Load the setup UI builder files and resolve required widgets.
+// This keeps references to the top-level main window and macro dialog
+// so they remain valid after the builder is destroyed.
 void SetupView::init()
 {
-    GtkBuilder* builder = gtk_builder_new();
-    GError* error = NULL;
+    GtkBuilder *builder = gtk_builder_new();
+    GError *error = NULL;
     gtk_builder_add_from_file(builder, PKGDATADIR "/ui/main_window.ui", &error);
     if (error != NULL)
     {
@@ -37,17 +40,20 @@ void SetupView::init()
     g_object_unref(builder);
 }
 
+// Show the main setup window and all child widgets.
 void SetupView::showMainWindow()
 {
     gtk_widget_show_all(m_mainWindow);
 }
 
+// Show the macro editor dialog and bring it to the front.
 void SetupView::showMacroDialog()
 {
     gtk_widget_show_all(m_macroDialog);
     gtk_window_present(GTK_WINDOW(m_macroDialog));
 }
 
+// Hide the macro editor dialog without destroying it.
 void SetupView::hideMacroDialog()
 {
     gtk_widget_hide(m_macroDialog);
