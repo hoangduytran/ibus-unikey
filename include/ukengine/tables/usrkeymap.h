@@ -25,13 +25,33 @@
 #define __UNIKEY_USER_KEY_MAP_H
 
 #include "inputproc.h"
-struct UkKeyMapPair {
-    unsigned char   key;
-    int             action;
+
+// A single user-defined key mapping entry.
+// This pairs an input key code with a custom action value.
+struct UkKeyMapPair
+{
+    unsigned char key; // raw key code from the keyboard mapping file
+    int action;        // action or mapped value to apply for this key
 };
 
+// Load a full 256-entry keyboard mapping table from a file.
+// @param fileName path to the key map file to load
+// @param keyMap output array of 256 mapping values to fill
+// @return status code indicating success or failure
 DllInterface int UkLoadKeyMap(const char *fileName, int keyMap[256]);
+
+// Load an ordered list of key mappings used for custom key order rules.
+// @param fileName path to the key order map file to load
+// @param pMap output array of UkKeyMapPair entries to populate
+// @param pMapCount input/output pointer to the size of pMap; receives loaded entry count
+// @return status code indicating success or failure
 DllInterface int UkLoadKeyOrderMap(const char *fileName, UkKeyMapPair *pMap, int *pMapCount);
+
+// Store the current ordered key mapping list back to a file.
+// @param fileName path to write the key order map to
+// @param pMap array of UkKeyMapPair entries to write
+// @param mapCount number of entries in pMap to store
+// @return status code indicating success or failure
 DllInterface int UkStoreKeyOrderMap(const char *fileName, UkKeyMapPair *pMap, int mapCount);
 
 #endif

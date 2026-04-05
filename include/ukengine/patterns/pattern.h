@@ -24,39 +24,45 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define __PATTERN_H
 
 #if defined(_WIN32)
-    #if defined(UNIKEYHOOK)
-        #define DllInterface   __declspec( dllexport )
-    #else
-        #define DllInterface   __declspec( dllimport )
-    #endif
+#if defined(UNIKEYHOOK)
+#define DllInterface __declspec(dllexport)
 #else
-    #define DllInterface //not used
+#define DllInterface __declspec(dllimport)
+#endif
+#else
+#define DllInterface // not used
 #endif
 
 #define MAX_PATTERN_LEN 40
 
+// PatternState tracks the matching state for a single search pattern.
+// It uses a border table so input may be consumed one character at a time
+// and matches are found efficiently without restarting from scratch.
 class DllInterface PatternState
 {
 public:
-	char *m_pattern;
-	int m_border[MAX_PATTERN_LEN+1];
-	int m_pos;
-	int m_found;
-	void init(char *pattern);
-	void reset();
-	int foundAtNextChar(char ch); //get next input char, returns 1 if pattern is found.
+	char *m_pattern;				   // null-terminated pattern string being searched
+	int m_border[MAX_PATTERN_LEN + 1]; // KMP border/failure table for the pattern
+	int m_pos;						   // current scan position in the pattern
+	int m_found;					   // nonzero once the pattern has been matched
+	void init(char *pattern);		   // initialize state and build the border table
+	void reset();					   // reset scan position to begin a new input sequence
+	int foundAtNextChar(char ch);	   // consume next char and return 1 if matched
 };
 
+// PatternList manages a collection of PatternState objects so several patterns
+// can be scanned in parallel against the same input stream.
 class DllInterface PatternList
 {
 public:
-	PatternState *m_patterns;
-	int m_count;
-	void init(char **patterns, int count);
-	int foundAtNextChar(char ch); 
-	void reset();
+	PatternState *m_patterns;			   // dynamic array of active pattern states
+	int m_count;						   // number of patterns in the list
+	void init(char **patterns, int count); // allocate and initialize the list
+	int foundAtNextChar(char ch);		   // update every pattern with the next char
+	void reset();						   // reset all contained pattern states
 
-	PatternList() {
+	PatternList()
+	{
 		m_count = 0;
 		m_patterns = 0;
 	}
@@ -64,9 +70,8 @@ public:
 	~PatternList()
 	{
 		if (m_patterns)
-			delete [] m_patterns;
+			delete[] m_patterns;
 	}
 };
-
 
 #endif
