@@ -29,14 +29,57 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "charset.h"
 #include "data.h"
 
+/**
+ * @brief Lowercase vowel lookup table.
+ *
+ * Each index corresponds to a lowercase ASCII letter 'a'..'z'.
+ * Nonzero means the letter is a Vietnamese vowel.
+ *
+ * Usage:
+ *   if (LoVowel['a'-'a']) // 'a' is a vowel
+ */
 int LoVowel['z'-'a'+1];
+
+/**
+ * @brief Uppercase vowel lookup table.
+ *
+ * Mirrors LoVowel for 'A'..'Z'.
+ * Usage is identical to LoVowel, but for uppercase.
+ */
 int HiVowel['Z'-'A'+1];
 
+/**
+ * @brief Macro to check if a character is a Vietnamese vowel (upper or lower).
+ *
+ * Usage:
+ *   if (IS_VOWEL(c)) { ... }
+ */
 #define IS_VOWEL(x) ((x >= 'a' && x <= 'z' && LoVowel[x-'a']) || (x >= 'A' && x <= 'Z' && HiVowel[x-'A']))
 
+/**
+ * @brief Array of pointers to single-byte charset converters.
+ *
+ * Indexed by CONV_* IDs. Used by the engine to convert byte streams to StdVnChar.
+ * Example:
+ *   SingleByteCharset *latin1 = SgCharsets[CONV_LATIN1];
+ *   if (latin1) latin1->nextInput(is, stdChar, bytesRead);
+ */
 SingleByteCharset *SgCharsets[CONV_TOTAL_SINGLE_CHARSETS];
+
+/**
+ * @brief Array of pointers to double-byte charset converters.
+ *
+ * Used for multi-byte legacy encodings.
+ */
 DoubleByteCharset *DbCharsets[CONV_TOTAL_DOUBLE_CHARSETS];
 
+/**
+ * @brief Central charset library object exported from the mapping module.
+ *
+ * Provides registration, lookup, and lifetime management for available charset converters.
+ * Example:
+ *   CVnCharsetLib &lib = VnCharsetLibObj;
+ */
 DllExport CVnCharsetLib VnCharsetLibObj;
 
 //////////////////////////////////////////////////////
