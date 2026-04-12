@@ -78,22 +78,6 @@ int UnikeyBackspaces;
 int UnikeyBufChars;
 UkOutputType UnikeyOutput;
 
-//--------------------------------------------
-void UnikeySetInputMethod(UkInputMethod im)
-{
-  if (im == UkTelex || im == UkVni || im == UkSimpleTelex || im == UkSimpleTelex2) {
-    pShMem->input.setIM(im);
-    MyKbEngine.reset();
-  }
-  else if (im == UkUsrIM && pShMem->usrKeyMapLoaded) {
-    //cout << "Switched to user mode\n"; //DEBUG
-    pShMem->input.setIM(pShMem->usrKeyMap);
-    MyKbEngine.reset();
-  }
-
-  //cout << "IM changed to: " << im << endl; //DEBUG
-}
-
 /**
  * @brief Set the active input method used by UniKey.
  *
@@ -107,14 +91,22 @@ void UnikeySetInputMethod(UkInputMethod im)
  * Example:
  *   UnikeySetInputMethod(UkVni);
  */
-
-
 //--------------------------------------------
-void UnikeySetCapsState(int shiftPressed, int CapsLockOn)
+void UnikeySetInputMethod(UkInputMethod im)
 {
-  //UnikeyCapsAll = (shiftPressed && !CapsLockOn) || (!shiftPressed && CapsLockOn);
-  UnikeyCapsLockOn = CapsLockOn;
-  UnikeyShiftPressed = shiftPressed;
+  if (im == UkTelex || im == UkVni || im == UkSimpleTelex || im == UkSimpleTelex2)
+  {
+    pShMem->input.setIM(im);
+    MyKbEngine.reset();
+  }
+  else if (im == UkUsrIM && pShMem->usrKeyMapLoaded)
+  {
+    // cout << "Switched to user mode\n"; //DEBUG
+    pShMem->input.setIM(pShMem->usrKeyMap);
+    MyKbEngine.reset();
+  }
+
+  // cout << "IM changed to: " << im << endl; //DEBUG
 }
 
 /**
@@ -129,13 +121,12 @@ void UnikeySetCapsState(int shiftPressed, int CapsLockOn)
  * Example:
  *   UnikeySetCapsState(1, 0); // Shift pressed, CapsLock off
  */
-
 //--------------------------------------------
-int UnikeySetOutputCharset(int charset)
+void UnikeySetCapsState(int shiftPressed, int CapsLockOn)
 {
-    pShMem->charsetId = charset;
-    MyKbEngine.reset();
-    return 1;
+  // UnikeyCapsAll = (shiftPressed && !CapsLockOn) || (!shiftPressed && CapsLockOn);
+  UnikeyCapsLockOn = CapsLockOn;
+  UnikeyShiftPressed = shiftPressed;
 }
 
 /**
@@ -151,17 +142,12 @@ int UnikeySetOutputCharset(int charset)
  * Example:
  *   UnikeySetOutputCharset(CONV_CHARSET_XUTF8);
  */
-
 //--------------------------------------------
-void UnikeySetOptions(UnikeyOptions *pOpt)
+int UnikeySetOutputCharset(int charset)
 {
-  pShMem->options.freeMarking = pOpt->freeMarking;
-  pShMem->options.modernStyle = pOpt->modernStyle;
-  pShMem->options.macroEnabled = pOpt->macroEnabled;
-  pShMem->options.useUnicodeClipboard = pOpt->useUnicodeClipboard;
-  pShMem->options.alwaysMacro = pOpt->alwaysMacro;
-  pShMem->options.spellCheckEnabled = pOpt->spellCheckEnabled;
-  pShMem->options.autoNonVnRestore = pOpt->autoNonVnRestore;
+  pShMem->charsetId = charset;
+  MyKbEngine.reset();
+  return 1;
 }
 
 /**
@@ -176,11 +162,16 @@ void UnikeySetOptions(UnikeyOptions *pOpt)
  *   UnikeyOptions opt = {1,0,1,0,0,1,1};
  *   UnikeySetOptions(&opt);
  */
-
 //--------------------------------------------
-void UnikeyGetOptions(UnikeyOptions *pOpt)
+void UnikeySetOptions(UnikeyOptions *pOpt)
 {
-  *pOpt = pShMem->options;
+  pShMem->options.freeMarking = pOpt->freeMarking;
+  pShMem->options.modernStyle = pOpt->modernStyle;
+  pShMem->options.macroEnabled = pOpt->macroEnabled;
+  pShMem->options.useUnicodeClipboard = pOpt->useUnicodeClipboard;
+  pShMem->options.alwaysMacro = pOpt->alwaysMacro;
+  pShMem->options.spellCheckEnabled = pOpt->spellCheckEnabled;
+  pShMem->options.autoNonVnRestore = pOpt->autoNonVnRestore;
 }
 
 /**
@@ -190,17 +181,10 @@ void UnikeyGetOptions(UnikeyOptions *pOpt)
  *
  * Copies the engine's current options into the caller-provided struct.
  */
-
 //--------------------------------------------
-void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt)
+void UnikeyGetOptions(UnikeyOptions *pOpt)
 {
-  pOpt->freeMarking = 1;
-  pOpt->modernStyle = 0;
-  pOpt->macroEnabled = 1;
-  pOpt->useUnicodeClipboard = 0;
-  pOpt->alwaysMacro = 0;
-  pOpt->spellCheckEnabled = 1;
-  pOpt->autoNonVnRestore = 1;
+  *pOpt = pShMem->options;
 }
 
 /**
@@ -211,12 +195,16 @@ void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt)
  * Useful when creating new shared-memory option blocks or resetting
  * configuration to defaults.
  */
-
 //--------------------------------------------
-void UnikeyCheckKbCase(int *pShiftPressed, int *pCapsLockOn)
+void CreateDefaultUnikeyOptions(UnikeyOptions *pOpt)
 {
-  *pShiftPressed = UnikeyShiftPressed;
-  *pCapsLockOn = UnikeyCapsLockOn;
+  pOpt->freeMarking = 1;
+  pOpt->modernStyle = 0;
+  pOpt->macroEnabled = 1;
+  pOpt->useUnicodeClipboard = 0;
+  pOpt->alwaysMacro = 0;
+  pOpt->spellCheckEnabled = 1;
+  pOpt->autoNonVnRestore = 1;
 }
 
 /**
@@ -232,22 +220,11 @@ void UnikeyCheckKbCase(int *pShiftPressed, int *pCapsLockOn)
  *   int shift, caps;
  *   UnikeyCheckKbCase(&shift, &caps);
  */
-
 //--------------------------------------------
-void UnikeySetup()
+void UnikeyCheckKbCase(int *pShiftPressed, int *pCapsLockOn)
 {
-    SetupUnikeyEngine();
-    pShMem = new UkSharedMem;
-    pShMem->input.init();
-    pShMem->macStore.init();
-    pShMem->vietKey = 1;
-    pShMem->usrKeyMapLoaded = 0;
-    MyKbEngine.setCtrlInfo(pShMem);
-    MyKbEngine.setCheckKbCaseFunc(&UnikeyCheckKbCase);
-    UnikeySetInputMethod(UkTelex);
-    UnikeySetOutputCharset(CONV_CHARSET_XUTF8);
-    pShMem->initialized = 1;
-    CreateDefaultUnikeyOptions(&pShMem->options);
+  *pShiftPressed = UnikeyShiftPressed;
+  *pCapsLockOn = UnikeyCapsLockOn;
 }
 
 /**
@@ -260,11 +237,21 @@ void UnikeySetup()
  * Example:
  *   UnikeySetup();
  */
-
 //--------------------------------------------
-void UnikeyCleanup()
+void UnikeySetup()
 {
-  delete pShMem;
+  SetupUnikeyEngine();
+  pShMem = new UkSharedMem;
+  pShMem->input.init();
+  pShMem->macStore.init();
+  pShMem->vietKey = 1;
+  pShMem->usrKeyMapLoaded = 0;
+  MyKbEngine.setCtrlInfo(pShMem);
+  MyKbEngine.setCheckKbCaseFunc(&UnikeyCheckKbCase);
+  UnikeySetInputMethod(UkTelex);
+  UnikeySetOutputCharset(CONV_CHARSET_XUTF8);
+  pShMem->initialized = 1;
+  CreateDefaultUnikeyOptions(&pShMem->options);
 }
 
 /**
@@ -276,12 +263,10 @@ void UnikeyCleanup()
  * Example:
  *   UnikeyCleanup();
  */
-
 //--------------------------------------------
-void UnikeyFilter(unsigned int ch)
+void UnikeyCleanup()
 {
-  UnikeyBufChars = sizeof(UnikeyBuf);
-  MyKbEngine.process(ch, UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
+  delete pShMem;
 }
 
 /**
@@ -296,13 +281,11 @@ void UnikeyFilter(unsigned int ch)
  * Example:
  *   UnikeyFilter('a');
  */
-
 //--------------------------------------------
-void UnikeyPutChar(unsigned int ch)
+void UnikeyFilter(unsigned int ch)
 {
-  MyKbEngine.pass(ch);
-  UnikeyBufChars = 0;
-  UnikeyBackspaces = 0;
+  UnikeyBufChars = sizeof(UnikeyBuf);
+  MyKbEngine.process(ch, UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
 }
 
 /**
@@ -313,11 +296,12 @@ void UnikeyPutChar(unsigned int ch)
  * Use when you want to inject characters directly into the engine output
  * pipeline (for example when the host already decided the character is final).
  */
-
 //--------------------------------------------
-void UnikeyResetBuf()
+void UnikeyPutChar(unsigned int ch)
 {
-  MyKbEngine.reset();
+  MyKbEngine.pass(ch);
+  UnikeyBufChars = 0;
+  UnikeyBackspaces = 0;
 }
 
 /**
@@ -326,11 +310,10 @@ void UnikeyResetBuf()
  * Typically used when the host needs to abandon the current composition
  * (for example on focus loss or when switching contexts).
  */
-
 //--------------------------------------------
-void UnikeySetSingleMode()
+void UnikeyResetBuf()
 {
-  MyKbEngine.setSingleMode();
+  MyKbEngine.reset();
 }
 
 /**
@@ -340,13 +323,10 @@ void UnikeySetSingleMode()
  * than composing multi-character sequences. Useful for special host
  * behaviour where composition is undesired.
  */
-
 //--------------------------------------------
-void UnikeyBackspacePress()
+void UnikeySetSingleMode()
 {
-  UnikeyBufChars = sizeof(UnikeyBuf);
-  MyKbEngine.processBackspace(UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
-  //  printf("Backspaces: %d\n",UnikeyBackspaces);
+  MyKbEngine.setSingleMode();
 }
 
 /**
@@ -356,11 +336,12 @@ void UnikeyBackspacePress()
  * backspace operations made by the host application. `UnikeyBackspaces`
  * and `UnikeyBuf` are used to coordinate edits.
  */
-
 //--------------------------------------------
-int UnikeyLoadMacroTable(const char *fileName)
+void UnikeyBackspacePress()
 {
-  return pShMem->macStore.loadFromFile(fileName);
+  UnikeyBufChars = sizeof(UnikeyBuf);
+  MyKbEngine.processBackspace(UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
+  //  printf("Backspaces: %d\n",UnikeyBackspaces);
 }
 
 /**
@@ -374,16 +355,10 @@ int UnikeyLoadMacroTable(const char *fileName)
  *       // handle error
  *   }
  */
-
 //--------------------------------------------
-int UnikeyLoadUserKeyMap(const char *fileName)
+int UnikeyLoadMacroTable(const char *fileName)
 {
-  if (UkLoadKeyMap(fileName, pShMem->usrKeyMap)) {
-    //cout << "User key map loaded!\n"; //DEBUG
-    pShMem->usrKeyMapLoaded = 1;
-    return 1;
-  }
-  return 0;
+  return pShMem->macStore.loadFromFile(fileName);
 }
 
 /**
@@ -395,12 +370,16 @@ int UnikeyLoadUserKeyMap(const char *fileName)
  * When successful, the mapping becomes available via `UkUsrIM` input
  * method in `UnikeySetInputMethod`.
  */
-
 //--------------------------------------------
-void UnikeyRestoreKeyStrokes()
+int UnikeyLoadUserKeyMap(const char *fileName)
 {
-    UnikeyBufChars = sizeof(UnikeyBuf);
-    MyKbEngine.restoreKeyStrokes(UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
+  if (UkLoadKeyMap(fileName, pShMem->usrKeyMap))
+  {
+    // cout << "User key map loaded!\n"; //DEBUG
+    pShMem->usrKeyMapLoaded = 1;
+    return 1;
+  }
+  return 0;
 }
 
 /**
@@ -409,10 +388,11 @@ void UnikeyRestoreKeyStrokes()
  * Useful when the host needs UniKey to re-send composed characters after
  * a temporary interruption or when recovering from a lost event.
  */
-
-bool UnikeyAtWordBeginning()
+//--------------------------------------------
+void UnikeyRestoreKeyStrokes()
 {
-    return MyKbEngine.atWordBeginning();
+  UnikeyBufChars = sizeof(UnikeyBuf);
+  MyKbEngine.restoreKeyStrokes(UnikeyBackspaces, UnikeyBuf, UnikeyBufChars, UnikeyOutput);
 }
 
 /**
@@ -421,6 +401,11 @@ bool UnikeyAtWordBeginning()
  * @return true when the engine believes the cursor is at a word boundary.
  *
  * Example:
- *   if (UnikeyAtWordBeginning()) { /* adjust composition behaviour */ }
+ *   if (UnikeyAtWordBeginning()) {
+ *       // adjust composition behaviour
+ *   }
  */
-
+bool UnikeyAtWordBeginning()
+{
+  return MyKbEngine.atWordBeginning();
+}

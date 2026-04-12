@@ -711,4 +711,12 @@ StdVnChar StdVnToLower(StdVnChar ch);
  */
 StdVnChar StdVnRemoveTone(StdVnChar ch);
 
+/**
+ * @brief Compatibility alias for tone removal used by older converter code.
+ *
+ * @param ch standard Vietnamese char code.
+ * @return root standard Vietnamese char code without tone element.
+ */
+StdVnChar StdVnGetRoot(StdVnChar ch);
+
 #endif
