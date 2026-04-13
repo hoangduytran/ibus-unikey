@@ -1,0 +1,14 @@
+Update docs and charset mapping
+
+Detailed changes:
+- Updated `README.md` and `TECHNICAL_NOTE.md` to improve the documentation around the charset and mapping layers.
+- Clarified the role of `vnlexi.h`, the keystroke state transitions, and the relationship between input processing, composition, and charset conversion.
+- Added diagram references and inline previews for local viewing in the documentation.
+- Updated `ukengine/mapping/charset.cpp` and related mapping headers with clarifying comments.
+
+Notes:
+- Diagram artifacts under `project_dir/` are intentionally untracked and backed up under `project_dir/backup/`.
+- This patch focuses on documentation and charset/mapping source comments; it does not include generated artifacts.
+
+Signed-off-by: Automated agent
+

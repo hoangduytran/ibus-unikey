@@ -8,43 +8,41 @@
 
 #include "unikey_config.h"
 
-#define _(string) gettext(string)
+#include "ui/setup_view.h"
+#include "config/settings_store.h"
+#include "controller/setup_controller.h"
 
-GtkWidget* mwin;
-GtkWidget* dlgMacro;
-GtkTreeView* tree_macro;
-
-void init_gtk_builder()
-{
-    GtkBuilder* builder = gtk_builder_new();
-    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", NULL);
-    gtk_builder_connect_signals(builder, NULL);
-
-    mwin = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
-    dlgMacro = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
-    gtk_window_set_transient_for(GTK_WINDOW(dlgMacro), GTK_WINDOW(mwin));
-
-    tree_macro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
-
-    g_object_unref(builder);
-}
-
-int main(int argc, char** argv)
+// Application entry point for the setup UI.
+// Initializes localization, the GTK runtime, and the setup view/controller.
+// @param argc count of command-line arguments
+// @param argv array of command-line argument strings
+// @return 0 on successful application exit
+int main(int argc, char **argv)
 {
     setlocale(LC_ALL, "");
     bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
     textdomain(GETTEXT_PACKAGE);
 
+    // Initialize the Unikey configuration backend.
     ibus_unikey_config_init();
 
+    // Initialize GTK and parse command-line arguments.
     gtk_init(&argc, &argv);
     gtk_window_set_default_icon_from_file(PKGDATADIR "/icons/ibus-unikey.svg", NULL);
 
-    init_gtk_builder();
+    // Create and initialize the setup UI view.
+    SetupView view;
+    view.init();
 
-    gtk_widget_show_all(mwin);
+    // Create the settings store and controller, then register the global controller.
+    SettingsStore store;
+    SetupController controller(view, store);
+    global_setup_controller_set(&controller);
+    controller.init();
+
+    // Show the main window and enter the GTK main loop.
+    view.showMainWindow();
     gtk_main();
 
     return 0;
 }
-
