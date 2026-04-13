@@ -1,38 +1,14 @@
 Update docs and charset mapping
 
 Detailed changes:
-- Updated documentation: `README.md` and `TECHNICAL_NOTE.md`.
-  - Added a Diagrams subsection linking generated SVGs and embedded previews.
-  - Clarified `vnlexi.h` role, explained keystroke state transitions, and added diagram cross-links.
-  - Embedded inline previews for the generated diagrams to make them viewable locally.
-
-- Charset / mapping updates: `ukengine/mapping/charset.cpp` and related headers.
-  - Minor clarifying comments and ensured the documentation accurately references the charset conversion layer.
+- Updated `README.md` and `TECHNICAL_NOTE.md` to improve the documentation around the charset and mapping layers.
+- Clarified the role of `vnlexi.h`, the keystroke state transitions, and the relationship between input processing, composition, and charset conversion.
+- Added diagram references and inline previews for local viewing in the documentation.
+- Updated `ukengine/mapping/charset.cpp` and related mapping headers with clarifying comments.
 
 Notes:
-- Diagram generation artifacts (under `project_dir/`) are intentionally untracked and backed up under `project_dir/backup/`.
-- This commit contains only the documentation and charset source changes requested; other automation and viewer files remain in the working tree and backups.
-
-Reviewed-and-tested:
-- Generated SVGs under `project_dir/diagrams/` and added a lightweight viewer for zoom/pan.
+- Diagram artifacts under `project_dir/` are intentionally untracked and backed up under `project_dir/backup/`.
+- This patch focuses on documentation and charset/mapping source comments; it does not include generated artifacts.
 
 Signed-off-by: Automated agent
-Comment mapping headers in include/ukengine/mapping following code_comments.md style
-
-- Add file-level documentation to `include/ukengine/mapping/charset.h`, `keycons.h`, `mactab.h`, `vnconv.h`, `vnlexi.h`.
-- Add detailed comments for `VnCharset`, derived charset classes, and mapping constants in `charset.h`.
-- Comment input method enum and option flags in `keycons.h`.
-- Document `CMacroTable` operations and storage model in `mactab.h`.
-- Document conversion constants, API functions, error codes, and options in `vnconv.h`.
-- Add enum group semantics for `VnLexiName`, `VowelSeq`, and `ConSeq` in `vnlexi.h`.
-
-Reasoning:
-- Improve maintainability and readability of mapping/conversion abstractions.
-- Provide clear intent for mapping tables, option semantics and API errors.
-- Follow code comment guidelines in `.github/skills/development-guidelines/code_comments.md`.
-
-Validation:
-- `git diff` shows only comment and doc changes in include/ukengine/mapping headers.
-- `./mkme` still succeeds with no behavioral changes.
-- `ctest --output-on-failure` still passes.
 

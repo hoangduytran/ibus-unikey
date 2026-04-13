@@ -42,28 +42,12 @@ The codebase is split into three main layers:
 
 ### Diagrams
 
-- [High-Level Architecture (page 1)](project_dir/diagrams/01_high_level_architecture.svg): overall layers and dataflow from IBus to charset output.
-- [Keystroke State Machine (page 2)](project_dir/diagrams/02_keystroke_state_machine.svg): composition state transitions for keystrokes.
-- [VnLexi Mapping (page 3)](project_dir/diagrams/03_vnlexi_mapping.svg): how `vnlexi.h` maps into input processing and engine composition.
-- [Charset Commit Flow (page 4)](project_dir/diagrams/04_charset_commit.svg): when the engine finalizes composition and encodes output bytes.
+- [High-Level Architecture source](project_dir/diagrams/01_high_level_architecture.mmd): overall layers and dataflow from IBus to charset output.
+- [Keystroke State Machine source](project_dir/diagrams/02_keystroke_state_machine.mmd): composition state transitions for keystrokes.
+- [VnLexi Mapping source](project_dir/diagrams/03_vnlexi_mapping.dot): how `vnlexi.h` maps into input processing and engine composition.
+- [Charset Commit Flow source](project_dir/diagrams/04_charset_commit.mmd): when the engine finalizes composition and encodes output bytes.
 
-Below are inline previews of each diagram (click the image to open the SVG file):
-
-[High-Level Architecture (page 1)](project_dir/diagrams/01_high_level_architecture.svg)
-
-![](project_dir/diagrams/01_high_level_architecture.svg)
-
-[Keystroke State Machine (page 2)](project_dir/diagrams/02_keystroke_state_machine.svg)
-
-![](project_dir/diagrams/02_keystroke_state_machine.svg)
-
-[VnLexi Mapping (page 3)](project_dir/diagrams/03_vnlexi_mapping.svg)
-
-![](project_dir/diagrams/03_vnlexi_mapping.svg)
-
-[Charset Commit Flow (page 4)](project_dir/diagrams/04_charset_commit.svg)
-
-![](project_dir/diagrams/04_charset_commit.svg)
+The diagrams are kept as source files in `project_dir/diagrams/` for local regeneration.
 
 ### 2.1 IBus integration layer
 
