@@ -1,0 +1,7 @@
+Comment ukengine/convert.cpp thoroughly
+
+- add file-level explanatory header for the conversion module
+- add line-by-line progress comments to genConvert, VnConvert, VnFileConvert, and vnFileStreamConvert
+- keep behavior unchanged; documentation only
+- align the annotated file with the upstream path ukengine/convert.cpp used on master
+
