@@ -1,14 +1,29 @@
-Update docs and charset mapping
+# Commit: Update TECHNICAL_NOTE.md and related files
 
-Detailed changes:
-- Updated `README.md` and `TECHNICAL_NOTE.md` to improve the documentation around the charset and mapping layers.
-- Clarified the role of `vnlexi.h`, the keystroke state transitions, and the relationship between input processing, composition, and charset conversion.
-- Added diagram references and inline previews for local viewing in the documentation.
-- Updated `ukengine/mapping/charset.cpp` and related mapping headers with clarifying comments.
+## Files changed
+- .gitignore
+- TECHNICAL_NOTE.md
+- ukengine/CMakeLists.txt
 
-Notes:
-- Diagram artifacts under `project_dir/` are intentionally untracked and backed up under `project_dir/backup/`.
-- This patch focuses on documentation and charset/mapping source comments; it does not include generated artifacts.
+## Summary of changes
 
-Signed-off-by: Automated agent
+### .gitignore
+- Added: project_dir/, package.json, readme_viewer.html, serve_readme.py, server.js to ignore list.
+
+### TECHNICAL_NOTE.md
+- Major rewrite and update to match the current source tree as of 19 April 2026.
+- Updated architecture, runtime flow, and configuration documentation.
+- Clarified which input methods and charsets are actually exposed in the UI vs. implemented in code.
+- Added verified corrections, limitations, and suggestions for future improvements.
+- Updated Vietnamese summary and technical notes.
+- Removed outdated sections and synchronized with the current implementation.
+
+### ukengine/CMakeLists.txt
+- Updated include directory handling for ukengine target.
+- Now uses $<BUILD_INTERFACE:...> and $<INSTALL_INTERFACE:...> for include paths.
+- Improved CMake best practices for target_include_directories.
+
+## Details
+- See the diff for full line-by-line changes, including all documentation and code comments.
+- The update brings the technical note and build configuration in sync with the actual codebase and current project state.
 

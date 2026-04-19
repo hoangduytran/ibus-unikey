@@ -55,6 +55,7 @@ enum VnLexiName
   vnl_Ar,  ///< Â (uppercase A with roof)
   vnl_ar,  ///< â
   vnl_Ar1, ///< Ấ (Â + sắc)
+  vnl_ar1, ///< ấ
   vnl_Ar2, ///< Ầ (Â + huyền)
   vnl_ar2, ///< ầ
   vnl_Ar3, ///< Ẩ (Â + hỏi)

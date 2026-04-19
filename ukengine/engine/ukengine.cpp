@@ -23,7 +23,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <iostream>
+#include <ctype.h>
 #include "keycons.h"
 
 /*
@@ -36,8 +36,6 @@
 #include "ukengine.h"
 
 #include "charset.h"
-
-using namespace std;
 
 #define ENTER_CHAR 13
 #define IS_ODD(x) (x & 1)
@@ -249,8 +247,17 @@ struct VowelSeqInfo
  * See also: lookupVSeq(), VowelSeq, VnLexiName, and VowelSeqInfo struct definition above.
  */
 VowelSeqInfo VSeqList[] = {
+    {1, 1, 1, {vnl_a, vnl_nonVnChar, vnl_nonVnChar}, {vs_a, vs_nil, vs_nil}, -1, vs_ar, -1, vs_ab},    // "a" (roof=>â, hook=>ă)
+    {1, 1, 1, {vnl_ar, vnl_nonVnChar, vnl_nonVnChar}, {vs_ar, vs_nil, vs_nil}, 0, vs_nil, -1, vs_ab},  // "â" (has roof, hook=>ă)
+    {1, 1, 1, {vnl_ab, vnl_nonVnChar, vnl_nonVnChar}, {vs_ab, vs_nil, vs_nil}, -1, vs_ar, 0, vs_nil},  // "ă" (roof=>â, has hook)
+    {1, 1, 1, {vnl_e, vnl_nonVnChar, vnl_nonVnChar}, {vs_e, vs_nil, vs_nil}, -1, vs_er, -1, vs_nil},   // "e" (roof=>ê)
+    {1, 1, 1, {vnl_er, vnl_nonVnChar, vnl_nonVnChar}, {vs_er, vs_nil, vs_nil}, 0, vs_nil, -1, vs_nil}, // "ê" (has roof)
+    {1, 1, 1, {vnl_i, vnl_nonVnChar, vnl_nonVnChar}, {vs_i, vs_nil, vs_nil}, -1, vs_nil, -1, vs_nil},  // "i"
+    {1, 1, 1, {vnl_o, vnl_nonVnChar, vnl_nonVnChar}, {vs_o, vs_nil, vs_nil}, -1, vs_or, -1, vs_oh},    // "o" (roof=>ô, hook=>ơ)
+    {1, 1, 1, {vnl_or, vnl_nonVnChar, vnl_nonVnChar}, {vs_or, vs_nil, vs_nil}, 0, vs_nil, -1, vs_oh},  // "ô" (has roof, hook=>ơ)
+    {1, 1, 1, {vnl_oh, vnl_nonVnChar, vnl_nonVnChar}, {vs_oh, vs_nil, vs_nil}, -1, vs_or, 0, vs_nil},  // "ơ" (roof=>ô, has hook)
     {1, 1, 1, {vnl_u, vnl_nonVnChar, vnl_nonVnChar}, {vs_u, vs_nil, vs_nil}, -1, vs_nil, -1, vs_uh},   // "u" (hook=>ư)
-    {1, 1, 1, {vnl_uh, vnl_nonVnChar, vnl_nonVnChar}, {vs_uh, vs_nil, vs_nil}, -1, vs_nil, 0, vs_nil}, // "ư"
+    {1, 1, 1, {vnl_uh, vnl_nonVnChar, vnl_nonVnChar}, {vs_uh, vs_nil, vs_nil}, -1, vs_nil, 0, vs_nil}, // "ư" (has hook)
     {1, 1, 1, {vnl_y, vnl_nonVnChar, vnl_nonVnChar}, {vs_y, vs_nil, vs_nil}, -1, vs_nil, -1, vs_nil},  // "y"
     {2, 1, 0, {vnl_a, vnl_i, vnl_nonVnChar}, {vs_a, vs_ai, vs_nil}, -1, vs_nil, -1, vs_nil},           // "ai"
     {2, 1, 0, {vnl_a, vnl_o, vnl_nonVnChar}, {vs_a, vs_ao, vs_nil}, -1, vs_nil, -1, vs_nil},           // "ao"
@@ -1823,7 +1830,9 @@ int UkEngine::processDd(UkKeyEvent &ev)
 
     pos = m_current - m_buffer[m_current].c1Offset;
     if (!m_pCtrl->options.freeMarking && pos != m_current)
+    {
         return processAppend(ev);
+    }
 
     if (m_buffer[pos].cseq == cs_d)
     {
