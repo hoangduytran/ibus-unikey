@@ -15,3 +15,7 @@ It use Unikey-engine for progress key event.
 
 ### For install, please visit [wiki](https://github.com/vn-input/ibus-unikey/wiki) page
 
+### Technical documentation
+
+- [Technical Note](TECHNICAL_NOTE.md)
+
