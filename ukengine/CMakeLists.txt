@@ -14,15 +14,18 @@ set(SOURCES
 
 add_library(ukengine STATIC ${SOURCES})
 
-target_include_directories(ukengine PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/mapping
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/tables
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/patterns
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/roof
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/engine
-    ${CMAKE_CURRENT_SOURCE_DIR}
+target_include_directories(ukengine
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/mapping
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/tables
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/patterns
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/roof
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/engine
+      ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding")

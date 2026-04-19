@@ -23,6 +23,11 @@ tests/
 build/
 mkme
 *commit.txt
+project_dir/
+package.json
+readme_viewer.html
+serve_readme.py
+server.js
 
 po/Makevars.template
 po/Rules-quot
