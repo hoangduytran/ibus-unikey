@@ -1,0 +1,32 @@
+## 20260426-0002-correct-include
+
+### Reason for this change
+- The build was failing in `ukengine/tables/data.cpp` due to invalid multicharacter literals after a data table divergence.
+- Header include resolution was also inconsistent (`ukengine/mapping/charset.h` wrapper behavior), which can cause brittle include lookup depending on include order.
+- We also need to keep warning policy strict while allowing this codebase's legacy table literals to compile cleanly.
+
+### What changed
+- Restored `ukengine/tables/data.cpp` content to match the canonical `master` copy (data content parity check done ignoring comments).
+- Updated `ukengine/mapping/charset.h` include to:
+  - `#include "mapping/charset.h"`
+  - so the local wrapper resolves deterministically to the generated/include-tree header.
+- Updated `ukengine/CMakeLists.txt` compile flags for `ukengine` target:
+  - added `-Wno-narrowing`
+  - retained `-funsigned-char -Wno-invalid-source-encoding`
+- Rebuilt with `./mkme`:
+  - compile + link succeed
+  - tests pass
+  - only install step fails due to system permission (`/usr/libexec`), which is expected in non-root environment and unrelated to source correctness.
+
+### Changed files
+- `ukengine/CMakeLists.txt`
+- `ukengine/mapping/charset.h`
+- `commit.txt`
+
+### Validation performed
+- `./mkme` completed build and test phases successfully.
+- `data.cpp` parity check against `master` (excluding comments) returned **MATCH**.
+
+---
+Previous notes are kept below for historical context.
+
