@@ -486,7 +486,7 @@ The current GTK macro dialog supports:
 - clear all
 - import from file
 - export to file
-- duplicate-key rejection in the GTK list store via a case-insensitive check
+- duplicate macro keys: **last wins** (case-folded) when loading/saving and when merging the engine table into the list store; the cell editor no longer blocks duplicate keys
 - incremental tree-view search behavior on column 0 because `search_column` is set
 
 ### 7.7 Macro editor capabilities that do not exist as a finished user-facing feature
@@ -595,7 +595,6 @@ Useful additions would be:
 - visible search box
 - filtering by key and replacement text
 - actual sortable columns
-- duplicate or high-conflict reporting
 - overflow warnings when approaching macro limits
 
 ### 10.4 Fix documentation drift in code

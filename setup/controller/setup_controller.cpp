@@ -270,9 +270,6 @@ void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext,
         || (strlen(STR_NULL_ITEM) != 0 && strlen(nkey) == 0))
         return;
 
-    if (list_store_check_exists(GTK_LIST_STORE(model), nkey))
-        return;
-
     gtk_tree_model_get_iter_from_string(model, &iter, string_path);
     gtk_tree_model_get(model, &iter, COL_KEY, &oldkey, -1);
     if (strcmp(oldkey, STR_NULL_ITEM) == 0)

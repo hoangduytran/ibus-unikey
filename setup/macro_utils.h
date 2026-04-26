@@ -17,12 +17,6 @@ enum
 // Default macro text value used when a new key is added without a user value.
 #define MACRO_DEFAULT_VALUE "(replace text)"
 
-// Check whether the given key already exists in the list store.
-// @param store list store to search
-// @param check_key key string to search for
-// @return TRUE when the key exists, FALSE otherwise
-gboolean list_store_check_exists(GtkListStore *store, gchar *check_key);
-
 // Ensure the list store always contains an empty placeholder row.
 // If the last row is already the placeholder, no action is taken.
 // @param list targeted list store

@@ -21,10 +21,14 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include <cctype>
+#include <new>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <new>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "mactab.h"
 #include "vnconv.h"
@@ -34,6 +38,19 @@
  * Used to distinguish between legacy VIQR and modern UTF-8 macro files.
  */
 #define UKMACRO_VERSION_UTF8 1
+
+// ASCII/byte-wise fold for macro file key (same family as strcasecmp for Latin keys)
+static std::string mactabFoldKeyPrefix(const char *line, size_t keyLen)
+{
+    std::string s(line, keyLen);
+    for (char &c : s)
+    {
+        unsigned char u = (unsigned char)c;
+        if (u < 128U)
+            c = (char)std::tolower((int)u);
+    }
+    return s;
+}
 
 //---------------------------------------------------------------
 void CMacroTable::setLastError(int code, const char *msg)
@@ -206,7 +223,7 @@ int CMacroTable::loadFromFile(const char *fname)
         fclose(f);
         return 0;
     }
-    bool anyLineFailed = false;
+    std::vector<std::string> all_lines;
     while (fgets(line, sizeof(line), f))
     {
         len = strlen(line);
@@ -214,18 +231,45 @@ int CMacroTable::loadFromFile(const char *fname)
             line[len - 1] = 0;
         if (len > 1 && line[len - 2] == '\r')
             line[len - 2] = 0;
-        if (version == UKMACRO_VERSION_UTF8)
-        {
-            if (addItem(line, CONV_CHARSET_UNIUTF8) < 0)
-                anyLineFailed = true;
-        }
-        else
-        {
-            if (addItem(line, CONV_CHARSET_VIQR) < 0)
-                anyLineFailed = true;
-        }
+        all_lines.push_back(std::string(line));
     }
     fclose(f);
+
+    const int charset = (version == UKMACRO_VERSION_UTF8) ? CONV_CHARSET_UNIUTF8 : CONV_CHARSET_VIQR;
+
+    // Last wins for duplicate keys (case-insensitive ASCII fold on the key part before ':')
+    std::unordered_map<std::string, size_t> last_line_for_key;
+    for (size_t i = 0; i < all_lines.size(); i++)
+    {
+        const char *L = all_lines[i].c_str();
+        const char *colon = strchr(L, ':');
+        if (colon == NULL)
+            continue;
+        size_t keyLen = (size_t)(colon - L);
+        if (keyLen > (size_t)(MAX_MACRO_KEY_LEN - 1))
+            keyLen = (size_t)(MAX_MACRO_KEY_LEN - 1);
+        last_line_for_key[mactabFoldKeyPrefix(L, keyLen)] = i;
+    }
+
+    bool anyLineFailed = false;
+    for (size_t i = 0; i < all_lines.size(); i++)
+    {
+        const char *L = all_lines[i].c_str();
+        const char *colon = strchr(L, ':');
+        if (colon == NULL)
+        {
+            if (addItem(L, charset) < 0)
+                anyLineFailed = true;
+            continue;
+        }
+        size_t keyLen = (size_t)(colon - L);
+        if (keyLen > (size_t)(MAX_MACRO_KEY_LEN - 1))
+            keyLen = (size_t)(MAX_MACRO_KEY_LEN - 1);
+        if (last_line_for_key[mactabFoldKeyPrefix(L, keyLen)] != i)
+            continue;
+        if (addItem(L, charset) < 0)
+            anyLineFailed = true;
+    }
 
     MacCompareStartMem = m_macroMem.data();
     if (!m_table.empty())
