@@ -5,6 +5,7 @@ autom4te.cache/
 *.*~
 .deps/
 stamp-*
+*.py
 
 ABOUT-NLS
 INSTALL

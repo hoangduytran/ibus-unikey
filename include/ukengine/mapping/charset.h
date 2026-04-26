@@ -669,8 +669,8 @@ public:
 /**
  * @brief Static tables for charset translation.
  */
-extern unsigned char SingleByteTables[][TOTAL_VNCHARS]; /**< table of standard-VN-index mappings for each single-byte legacy charset. */
-extern UKWORD DoubleByteTables[][TOTAL_VNCHARS];		/**< table of standard-VN-index mappings for each double-byte legacy charset. */
+extern unsigned char *SingleByteTables[];				/**< ordered pointers to single-byte mapping tables (kSingleByte* in tables/singlebyte). */
+extern UKWORD *DoubleByteTables[];				/**< ordered pointers to double-byte mapping tables (kDoubleByte* in tables/doublebytes). */
 extern UnicodeChar UnicodeTable[TOTAL_VNCHARS];			/**< canonical UTF-16 characters for each standard Vietnamese index. */
 extern UKDWORD VIQRTable[TOTAL_VNCHARS];				/**< mapping from standard Vietnamese index to VIQR codepoint values. */
 extern UKDWORD UnicodeComposite[TOTAL_VNCHARS];			/**< composed Unicode codepoints used for combined diacritic forms. */
