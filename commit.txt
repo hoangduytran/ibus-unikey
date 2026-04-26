@@ -1,0 +1,76 @@
+# Commit: Update TECHNICAL_NOTE.md and related files
+
+## Files changed
+- .gitignore
+- TECHNICAL_NOTE.md
+- ukengine/CMakeLists.txt
+
+## Summary of changes
+
+### .gitignore
+- Added: project_dir/, package.json, readme_viewer.html, serve_readme.py, server.js to ignore list.
+
+### TECHNICAL_NOTE.md
+- Major rewrite and update to match the current source tree as of 19 April 2026.
+- Updated architecture, runtime flow, and configuration documentation.
+- Clarified which input methods and charsets are actually exposed in the UI vs. implemented in code.
+- Added verified corrections, limitations, and suggestions for future improvements.
+- Updated Vietnamese summary and technical notes.
+- Removed outdated sections and synchronized with the current implementation.
+
+### ukengine/CMakeLists.txt
+- Updated include directory handling for ukengine target.
+- Now uses $<BUILD_INTERFACE:...> and $<INSTALL_INTERFACE:...> for include paths.
+- Improved CMake best practices for target_include_directories.
+
+## Details
+- See the diff for full line-by-line changes, including all documentation and code comments.
+- The update brings the technical note and build configuration in sync with the actual codebase and current project state.
+
+Summary of changes for branch 20260419-0002-comment-mactab-and-fixing-missing-items-from-commenting-process
+
+1. ukengine/mapping/mactab.cpp
+   - Added detailed comments to all uncommented functions, including parameter, variable, and code flow explanations.
+   - Reason: Improve maintainability and clarity for future development and debugging.
+
+2. ukengine/engine/ukengine.cpp
+   - Restored the first 9 entries of the VSeqList[] table (single vowels: a, â, ă, e, ê, i, o, ô, ơ) that were accidentally deleted during the commenting process.
+   - Reason: Fix critical bug where Vietnamese input sequences like 'ee' → 'ê' stopped working due to missing vowel sequence definitions.
+
+3. General
+   - Rebuilt and tested the engine after corrections. All tests pass and Vietnamese input works as expected.
+
+This commit documents both the code comments and the bug fix for the missing VSeqList entries, ensuring the engine's core input logic is correct and maintainable.
+
+Summary of changes for branch 20260419-0003-comment-pattern-and-function-progress
+
+1. ukengine/patterns/pattern.cpp
+   - Added thorough file-level and function-level comments following project guidelines.
+   - Explained the origin and examples of Vietnamese input patterns in the file header.
+   - Clarified that patterns are defined in input method mapping tables (e.g., Telex, VNI) elsewhere in the codebase.
+   - Added code progression comments to all functions for clarity.
+
+2. General
+   - No logic changes, only documentation and code clarity improvements.
+   - Ensured code compiles cleanly after documentation changes.
+
+This commit documents the improved code comments and explanations for the pattern matching engine, aiding future maintainability and onboarding.
+
+Summary of changes for branch 20260426-0001-roof-convert-commenting
+
+1. ukengine/roof/convert.cpp
+   - Added Doxygen-style headers for key APIs: `genConvert`, `VnConvert`, `VnFileConvert`, `vnFileStreamConvert`, and `VnConvErrMsg`.
+   - Expanded inline comments around control flow, buffer sizing, charset retrieval, stream setup, and return/error handling.
+   - Replaced older block comment headers with structured documentation comments to make generated API docs and quick source navigation clearer.
+   - Annotated `ErrTable` entries with explicit code index notes for easier mapping between numeric error codes and messages.
+   - Adjusted the temporary output cleanup logic in `VnFileConvert` to remove both target and temp files after successful conversion.
+
+2. Why these changes
+   - The conversion pipeline is core infrastructure and is read frequently during debugging; explicit comments reduce onboarding time and misinterpretation risk.
+   - Doxygen-format comments make exported conversion routines self-documenting and improve maintainability for both CLI and library users.
+   - Error-table annotations improve triage speed when correlating runtime error codes with user-facing diagnostics.
+   - The file-output handling notes and cleanup edits aim to make the output path behavior easier to follow during file-conversion troubleshooting.
+
+3. Scope
+   - Primary focus is documentation/commenting and readability in `ukengine/roof/convert.cpp`.
+   - No new files were introduced.
