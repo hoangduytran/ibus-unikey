@@ -56,3 +56,21 @@ Summary of changes for branch 20260419-0003-comment-pattern-and-function-progres
 
 This commit documents the improved code comments and explanations for the pattern matching engine, aiding future maintainability and onboarding.
 
+Summary of changes for branch 20260426-0001-roof-convert-commenting
+
+1. ukengine/roof/convert.cpp
+   - Added Doxygen-style headers for key APIs: `genConvert`, `VnConvert`, `VnFileConvert`, `vnFileStreamConvert`, and `VnConvErrMsg`.
+   - Expanded inline comments around control flow, buffer sizing, charset retrieval, stream setup, and return/error handling.
+   - Replaced older block comment headers with structured documentation comments to make generated API docs and quick source navigation clearer.
+   - Annotated `ErrTable` entries with explicit code index notes for easier mapping between numeric error codes and messages.
+   - Adjusted the temporary output cleanup logic in `VnFileConvert` to remove both target and temp files after successful conversion.
+
+2. Why these changes
+   - The conversion pipeline is core infrastructure and is read frequently during debugging; explicit comments reduce onboarding time and misinterpretation risk.
+   - Doxygen-format comments make exported conversion routines self-documenting and improve maintainability for both CLI and library users.
+   - Error-table annotations improve triage speed when correlating runtime error codes with user-facing diagnostics.
+   - The file-output handling notes and cleanup edits aim to make the output path behavior easier to follow during file-conversion troubleshooting.
+
+3. Scope
+   - Primary focus is documentation/commenting and readability in `ukengine/roof/convert.cpp`.
+   - No new files were introduced.
