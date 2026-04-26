@@ -28,5 +28,5 @@ target_include_directories(ukengine
       ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding")
+set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding -Wno-narrowing")
 
