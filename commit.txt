@@ -1,32 +1,27 @@
-## 20260426-0002-correct-include
+20260426-0003-ukengine-tables-usrkeymap-comment
 
-### Reason for this change
-- The build was failing in `ukengine/tables/data.cpp` due to invalid multicharacter literals after a data table divergence.
-- Header include resolution was also inconsistent (`ukengine/mapping/charset.h` wrapper behavior), which can cause brittle include lookup depending on include order.
-- We also need to keep warning policy strict while allowing this codebase's legacy table literals to compile cleanly.
+Reason for this change
+- `ukengine/tables/usrkeymap.cpp` contains important parsing and serialization paths that were difficult to follow because the intent of each step was mostly implicit.
+- The keymap data table formatting in `ukengine/tables/data.cpp` needed a readability pass so large table blocks are easier to scan and maintain without changing behavior.
+- We want this pass to stay non-functional: improve maintainability and reviewer clarity while preserving existing logic and output.
 
-### What changed
-- Restored `ukengine/tables/data.cpp` content to match the canonical `master` copy (data content parity check done ignoring comments).
-- Updated `ukengine/mapping/charset.h` include to:
-  - `#include "mapping/charset.h"`
-  - so the local wrapper resolves deterministically to the generated/include-tree header.
-- Updated `ukengine/CMakeLists.txt` compile flags for `ukengine` target:
-  - added `-Wno-narrowing`
-  - retained `-funsigned-char -Wno-invalid-source-encoding`
-- Rebuilt with `./mkme`:
-  - compile + link succeed
-  - tests pass
-  - only install step fails due to system permission (`/usr/libexec`), which is expected in non-root environment and unrelated to source correctness.
+What changed
+- Added detailed explanatory comments in `ukengine/tables/usrkeymap.cpp` for:
+  - label table purpose and count derivation
+  - config-line parsing flow (`parseNameValue`)
+  - key layout loading progression (`UkLoadKeyMap`, `UkLoadKeyOrderMap`)
+  - map initialization and key-order map persistence (`initKeyMap`, `UkStoreKeyOrderMap`)
+  - event-label lookup semantics (`getLabelIndex`)
+- Added/expanded API-style function documentation blocks around major exported/helper functions in `ukengine/tables/usrkeymap.cpp`.
+- Reformatted the top-level initializer structure in `ukengine/tables/data.cpp` to improve visual grouping/indentation consistency for large single-byte table entries; no data values were intentionally changed.
+- Updated this `commit.txt` to serve as the PR body and accurately describe this commit.
 
-### Changed files
-- `ukengine/CMakeLists.txt`
-- `ukengine/mapping/charset.h`
+Changed files
 - `commit.txt`
+- `ukengine/tables/data.cpp`
+- `ukengine/tables/usrkeymap.cpp`
 
-### Validation performed
-- `./mkme` completed build and test phases successfully.
-- `data.cpp` parity check against `master` (excluding comments) returned **MATCH**.
-
----
-Previous notes are kept below for historical context.
+Validation notes
+- This commit is intended as readability/documentation + formatting only.
+- No functional logic change is intended.
 

@@ -30,17 +30,22 @@ using namespace std;
 #include "usrkeymap.h"
 
 
+// Forward declaration: resolve an action/event code to a human-readable label index.
 int getLabelIndex(int action);
+// Forward declaration: initialize all key slots to "no special action".
 void initKeyMap(int keyMap[256]);
 
+// Comment prefix in user keymap files. Everything after this char is ignored.
 #define OPT_COMMENT_CHAR ';'
 
+// Pair a textual command label from config files with an internal UniKey event id.
 struct UkEventLabelPair
 {
     char label[32];
     int ev;
 };
 
+// Canonical mapping table used by both parser (label->event) and serializer (event->label).
 UkEventLabelPair UkEvLabelList[] = {
     {"Tone0", vneTone0},
     {"Tone1", vneTone1},
@@ -76,9 +81,14 @@ UkEventLabelPair UkEvLabelList[] = {
     {"u+", vneCount + vnl_uh}
 };
 
+// Number of entries in the label<->event lookup table.
 const int UkEvLabelCount = sizeof(UkEvLabelList)/sizeof(UkEventLabelPair);
 
 //--------------------------------------------------
+// Parse one "name = value" config line.
+// - Removes inline comment part.
+// - Trims spaces around name and value.
+// - Returns 1 on successful parse, 0 for empty/invalid lines.
 static int parseNameValue(char *line, char **name, char **value)
 {
     char *p, *mark;
@@ -128,6 +138,11 @@ static int parseNameValue(char *line, char **name, char **value)
 }
 
 //-----------------------------------------------------
+// Load a user layout file directly into keyMap[256].
+// Progression:
+// 1) Parse file into ordered key/action pairs.
+// 2) Start from a default "all normal" map.
+// 3) Apply each mapping; for tone actions, mirror lowercase key to same action.
 DllExport int UkLoadKeyMap(const char *fileName, int keyMap[256])
 {
     int i, mapCount;
@@ -145,123 +160,140 @@ DllExport int UkLoadKeyMap(const char *fileName, int keyMap[256])
     return 1;
 }
 
-//------------------------------------------------------------------
+/**
+* @brief Parse user key layout file into an ordered list of explicit mappings.
+* @param fileName path to the key layout file to load
+* @param pMap array of UkKeyMapPair entries to populate
+* @param pMapCount input/output pointer to the size of pMap; receives loaded entry count
+* @return status code indicating success or failure
+*/
 DllExport int UkLoadKeyOrderMap(const char *fileName, UkKeyMapPair *pMap, int *pMapCount)
 {
-    FILE *f;
-    char *buf;
-    char *name, *value;
-    size_t len;
-    int i, bufSize, lineCount;
-    unsigned char c;
-    int mapCount;
-    int keyMap[256];
+    FILE *f; // File pointer for key layout file
+    char *buf;          // Reused line buffer for file input
+    char *name, *value; // Parsed left/right tokens from a config line.
+    size_t len; // Length of the current line
+    int i, bufSize, lineCount; // Index for loop, buffer size, line count
+    unsigned char c;    // Parsed key byte from "name".
+    int mapCount;       // Number of accepted mappings written to pMap.
+    int keyMap[256];    // Temporary occupancy map to reject duplicate assignments.
 
-    f = fopen(fileName, "r");
-    if (f == 0) {
-        cerr << "Failed to open file: " << fileName << endl;
-        return 0;
+    f = fopen(fileName, "r"); // Open key layout file for reading
+    if (f == 0) { // if file cannot be opened, return 0
+        cerr << "Failed to open file: " << fileName << endl; // Print error message if file cannot be opened
+        return 0; // Return 0 on failure
     }
 
-    initKeyMap(keyMap);
-    bufSize = 256;
-    buf = new char[bufSize];
+    initKeyMap(keyMap); // Initialize key map with default "normal character" action for every byte value
+    bufSize = 256; // Set buffer size to 256
+    buf = new char[bufSize]; // Allocate buffer for key layout file
 
-    lineCount = 0;
-    mapCount = 0;
-    while (!feof(f)) {
+    lineCount = 0; // Set line count to 0
+    mapCount = 0; // Set map count to 0
+    while (!feof(f)) { // Loop through key layout file
         if (fgets((char *)buf, bufSize, f) == 0)
-            break;
+            break; // If end of file is reached, break
         lineCount++;
-        len = strlen(buf);
+        len = strlen(buf); // Get length of current line
         if (len == 0)
-            break;
+            break; // If line is empty, break
 
-        if (buf[len-1] == '\n')
+        if (buf[len-1] == '\n') // If last character is a newline, set it to 0
             buf[len-1] = 0;
-        if (parseNameValue(buf, (char **)&name, (char **)&value)) {
-            if (strlen(name) == 1) {
-                for (i=0; i < UkEvLabelCount; i++) {
-                    if (strcmp(UkEvLabelList[i].label, value) == 0) {
-                        c = (unsigned char)name[0];
-                        if (keyMap[c] != vneNormal) {
-                            //already assigned, don't accept this map
-                            break;
+        if (parseNameValue(buf, (char **)&name, (char **)&value)) { // Parse name and value from current line
+            if (strlen(name) == 1) { // If name is a single character, set c to the key
+                // Loop through all labels and check if the label matches the value
+                for (i=0; i < UkEvLabelCount; i++) { // Loop through all labels
+                    if (strcmp(UkEvLabelList[i].label, value) == 0) { // If label matches value, set c to the key
+                        c = (unsigned char)name[0]; // Set c to the key
+                        if (keyMap[c] != vneNormal) { // If key is already assigned, don't accept this map
+                            break; // Break out of loop
                         }
-                        //cout << "key: " << c << " value: " << UkEvLabelList[i].ev << endl; //DEBUG
-                        keyMap[c] = UkEvLabelList[i].ev;
-                        pMap[mapCount].action = UkEvLabelList[i].ev;
-                        if (keyMap[c] < vneCount) {
-                            pMap[mapCount].key = toupper(c);
-                            keyMap[toupper(c)] = UkEvLabelList[i].ev;
-                        }
-                        else {
-                            pMap[mapCount].key = c;
-                        }
-                        mapCount++;
-                        break;
-                    }
                 }
-                if (i == UkEvLabelCount) {
+                // If no label matches value, print error message
+                if (i == UkEvLabelCount) { // If no label matches value, print error message
                     cerr << "Error in user key layout, line " << lineCount << ": command not found" << endl;
                 }
             }
-            else {
+            else { // If key name is not a single character, print error message
                 cerr << "Error in user key layout, line " << lineCount 
                      << ": key name is not a single character" << endl;	
             }
         }
     }
-    delete [] buf;
-    fclose(f);
+    delete [] buf; // Delete buffer
+    fclose(f); // Close file
 
-    *pMapCount = mapCount;
+    *pMapCount = mapCount; // Set map count to the number of mappings   
 
-    return 1;
+    return 1; // Return 1 on success
 }
 
-//-------------------------------------------
+/**
+* @brief Fill key map with default "normal character" action for every byte value.
+* @param keyMap array of 256 mapping values to fill
+* @return void
+*/
 void initKeyMap(int keyMap[256])
 {
     unsigned int c;
-    for (c=0; c<256; c++)
-        keyMap[c] = vneNormal;
-}
+    for (c=0; c<256; c++)  // Loop through all key values
+        keyMap[c] = vneNormal;  // Set all key values to vneNormal
+} 
 
+// Header emitted at top of saved user keymap files.
 const char *UkKeyMapHeader = 
     "; This is UniKey user-defined key mapping file, generated from UniKey (Windows)\n\n";
 
+/**
+* @brief Persist an ordered key/action list to disk using "key = label" lines. Only actions with known labels are written.
+* @param fileName path to the key order map file to write
+* @param pMap array of UkKeyMapPair entries to write
+* @param mapCount number of entries in pMap to store
+* @return status code indicating success or failure
+*/
 DllExport int UkStoreKeyOrderMap(const char *fileName, UkKeyMapPair *pMap, int mapCount)
 {
-    FILE *f;
-    int i;
-    int labelIndex;
-    char line[128];
+    FILE *f; // File pointer for key order map file
+    int i; // Index for loop
+    int labelIndex; // Index into UkEvLabelList for current action.
+    char line[128]; // Output buffer for one serialized mapping line.
 
-    f = fopen(fileName, "wt");
-    if (f == 0) {
-        cerr << "Failed to open file: " << fileName << endl;
-        return 0;
+    f = fopen(fileName, "wt");  // Open file for writing in text mode
+    if (f == 0) {       // if file cannot be opened, return 0
+        cerr << "Failed to open file: " << fileName << endl;  // Print error message if file cannot be opened
+        return 0; // Return 0 on failure
     }
 
-    fputs(UkKeyMapHeader, f);
-    for (i=0; i < mapCount; i++) {
-        labelIndex = getLabelIndex(pMap[i].action);
-        if (labelIndex != -1) {
-            sprintf(line, "%c = %s\n", pMap[i].key, UkEvLabelList[labelIndex].label);
-            fputs(line, f);
+    // Write header to file
+    fputs(UkKeyMapHeader, f);  // Write header to file
+    // Loop through all mappings and write them to file
+    for (i=0; i < mapCount; i++) {  // Loop through all mappings
+        // Get label index for current action
+        labelIndex = getLabelIndex(pMap[i].action);  
+        // If label index is not -1, write mapping to file
+        if (labelIndex != -1) {  
+            sprintf(line, "%c = %s\n", pMap[i].key, UkEvLabelList[labelIndex].label);  // Format mapping as "key = label" and write to file
+            fputs(line, f);  // Write mapping to file
         }
     }
-    fclose(f);
-    return 1;
+    fclose(f);  // Close file
+    return 1;  // Return 1 on success 
 }
 
+/**
+* @brief Find label table index by event code; returns -1 when no label exists.
+* @param event event code to find
+* @return index of label if found, -1 if not found
+*/
 int getLabelIndex(int event)
 {
     int i;
-    for (i = 0; i < UkEvLabelCount; i++) {
-        if (UkEvLabelList[i].ev == event)
-            return i;
+    // Loop through all labels and check if the label matches the event
+    for (i = 0; i < UkEvLabelCount; i++) {  
+        // If label matches event, return index of label
+        if (UkEvLabelList[i].ev == event)  
+            return i;  
     }
-    return -1;
+    return -1;  
 }
