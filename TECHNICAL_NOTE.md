@@ -466,19 +466,17 @@ After macro text is emitted, the engine appends the triggering separator charact
 
 ### 7.5 Hard limits in current code
 
-These limits are compile-time constants in `include/ukengine/mapping/keycons.h`:
+These limits are defined in `include/ukengine/mapping/keycons.h`:
 
-- `MAX_MACRO_ITEMS = 1024`
 - `MAX_MACRO_KEY_LEN = 16`
 - `MAX_MACRO_TEXT_LEN = 1024`
-- `MACRO_MEM_SIZE = 1024 * 128` bytes
+- Per-entry and line-buffer limits; **macro entry count and total payload size** are not fixed at compile time: `CMacroTable` uses `std::vector` for the metadata array and a growable `std::vector<char>` for the offset-based key/text blob (see `mactab.h` / `mactab.cpp`).
 
 Important implementation detail:
 
-- macro entry count is explicitly capped at 1024 entries
 - plain-text key parsing truncates a macro key to at most 15 characters plus null terminator
 - the setup UI truncates edited macro value text to `MAX_MACRO_TEXT_LEN - 1` bytes before null termination
-- the in-memory storage budget is also bounded by the 128 KB macro memory buffer
+- very large tables are bounded only by available memory and `addItem` / load failure reporting
 
 ### 7.6 Macro editor capabilities that exist today
 

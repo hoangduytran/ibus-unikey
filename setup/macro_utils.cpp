@@ -86,17 +86,17 @@ void unikey_macro_to_store(CMacroTable *macro, GtkListStore *store)
     list_store_add_null_item(store);
 }
 
-// Populate the macro table from the list store rows.
-// Placeholder rows are ignored and only real entries are added.
-// @param store source GTK list store
-// @param macro destination macro table
-void unikey_store_to_macro(GtkListStore *store, CMacroTable *macro)
+UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(GtkTreeModel *model, CMacroTable *macro, gboolean reset_table_first)
 {
-    auto model = GTK_TREE_MODEL(store);
+    UnikeyMacroTableFillResult r;
+    r.total = 0;
+    r.added = 0;
+    r.failed = 0;
+    if (reset_table_first)
+        macro->resetContent();
 
     GtkTreeIter iter;
-    auto b = gtk_tree_model_get_iter_first(model, &iter);
-    macro->resetContent();
+    gboolean b = gtk_tree_model_get_iter_first(model, &iter);
     while (b == TRUE)
     {
         gchar *key, *value;
@@ -104,13 +104,23 @@ void unikey_store_to_macro(GtkListStore *store, CMacroTable *macro)
 
         if (strcasecmp(key, STR_NULL_ITEM) != 0)
         {
-            macro->addItem(key, value, CONV_CHARSET_XUTF8);
+            r.total++;
+            if (macro->addItem(key, value, CONV_CHARSET_XUTF8) < 0)
+                r.failed++;
+            else
+                r.added++;
         }
         g_free(key);
         g_free(value);
 
         b = gtk_tree_model_iter_next(model, &iter);
     }
+    return r;
+}
+
+UnikeyMacroTableFillResult unikey_store_to_macro(GtkListStore *store, CMacroTable *macro)
+{
+    return unikey_gtk_model_fill_macro_table(GTK_TREE_MODEL(store), macro, TRUE);
 }
 
 // Add a placeholder row to the list store when no empty row already exists.

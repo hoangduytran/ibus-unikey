@@ -40,10 +40,22 @@ void list_store_append(GtkListStore *list, CMacroTable *macro);
 // @param store destination GTK list store
 void unikey_macro_to_store(CMacroTable *macro, GtkListStore *store);
 
-// Convert GTK list store rows back into the macro table.
-// Rows with placeholder keys are skipped.
-// @param store source GTK list store
-// @param macro destination macro table
-void unikey_store_to_macro(GtkListStore *store, CMacroTable *macro);
+/**
+ * @brief Result of filling a CMacroTable from GtkTreeModel rows (non-placeholder only).
+ */
+struct UnikeyMacroTableFillResult
+{
+    int total;  /**< non-placeholder rows seen */
+    int added;  /**< addItem success count */
+    int failed; /**< addItem returned -1 */
+};
+
+// Fill a macro table from a tree model. Set reset_table_first to clear the table first
+// (e.g. full sync from a list store). If false, append into the current table (caller usually init()'d it).
+UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(GtkTreeModel *model, CMacroTable *macro, gboolean reset_table_first);
+
+// Convert GTK list store rows back into the macro table (resets the table first).
+// @return counts for UI to detect silent failures
+UnikeyMacroTableFillResult unikey_store_to_macro(GtkListStore *store, CMacroTable *macro);
 
 #endif

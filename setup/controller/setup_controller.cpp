@@ -26,6 +26,24 @@ void global_setup_controller_set(SetupController* c)
 
 #define _(str) gettext(str)
 
+// Show a modal error for macro engine failures (uses CMacroTable::getLastErrorMessage()).
+static void run_macro_error_dialog(GtkWindow *parent, CMacroTable *macro, const char *summary)
+{
+    const char *d = macro->getLastErrorMessage();
+    if (d == NULL || d[0] == '\0')
+        d = _("(no details)");
+    gchar *text = g_strdup_printf("%s\n%s", summary, d);
+    GtkWidget *dlg = gtk_message_dialog_new(
+        parent,
+        GTK_DIALOG_MODAL,
+        GTK_MESSAGE_ERROR,
+        GTK_BUTTONS_OK,
+        "%s", text);
+    g_free(text);
+    gtk_dialog_run(GTK_DIALOG(dlg));
+    gtk_widget_destroy(dlg);
+}
+
 // Construct the setup controller using the UI view and settings store.
 // @param view reference to the view wrapper used to access UI widgets
 // @param store reference to persistent settings storage backend
@@ -187,16 +205,31 @@ void SetupController::handleMacroEdit()
     int ret = gtk_dialog_run(GTK_DIALOG(m_view.getMacroDialog()));
     if (ret == GTK_RESPONSE_OK)
     {
-        unikey_store_to_macro(store, &macro);
-
-        GFile* f = g_file_get_parent(g_file_new_for_path(macrofile));
-        if (g_file_query_exists(f, NULL) == FALSE)
+        UnikeyMacroTableFillResult sync = unikey_store_to_macro(store, &macro);
+        if (sync.failed > 0)
         {
-            g_file_make_directory_with_parents(f, NULL, NULL);
+            run_macro_error_dialog(
+                GTK_WINDOW(m_view.getMacroDialog()),
+                &macro,
+                _("Not all macros could be saved. The macro file was not written."));
         }
-        g_object_unref(f);
+        else
+        {
+            GFile* f = g_file_get_parent(g_file_new_for_path(macrofile));
+            if (g_file_query_exists(f, NULL) == FALSE)
+            {
+                g_file_make_directory_with_parents(f, NULL, NULL);
+            }
+            g_object_unref(f);
 
-        macro.writeToFile(macrofile);
+            if (!macro.writeToFile(macrofile))
+            {
+                run_macro_error_dialog(
+                    GTK_WINDOW(m_view.getMacroDialog()),
+                    &macro,
+                    _("Could not write the macro file."));
+            }
+        }
     }
 
     g_free(macrofile);
@@ -325,7 +358,13 @@ void SetupController::handleMacroImport()
         auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
         CMacroTable macro;
         macro.init();
-        macro.loadFromFile(fn);
+        if (!macro.loadFromFile(fn))
+        {
+            run_macro_error_dialog(
+                GTK_WINDOW(m_view.getMacroDialog()),
+                &macro,
+                _("The macro file could not be fully imported."));
+        }
         g_free(fn);
 
         auto store = GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
@@ -363,24 +402,23 @@ void SetupController::handleMacroExport()
         macro.init();
 
         auto model = GTK_TREE_MODEL(gtk_tree_view_get_model(m_view.getMacroTree()));
-
-        GtkTreeIter iter;
-        gchar* key, *value;
-        gboolean b = gtk_tree_model_get_iter_first(model, &iter);
-        while (b == TRUE)
-        {
-            gtk_tree_model_get(model, &iter, COL_KEY, &key, COL_VALUE, &value, -1);
-            if (strcasecmp(key, STR_NULL_ITEM) != 0)
-            {
-                macro.addItem(key, value, CONV_CHARSET_XUTF8);
-            }
-            g_free(key);
-            g_free(value);
-            b = gtk_tree_model_iter_next(model, &iter);
-        }
+        UnikeyMacroTableFillResult fill = unikey_gtk_model_fill_macro_table(model, &macro, FALSE);
 
         auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
-        macro.writeToFile(fn);
+        if (fill.failed > 0)
+        {
+            run_macro_error_dialog(
+                GTK_WINDOW(m_view.getMacroDialog()),
+                &macro,
+                _("Not all macros could be written to the export file."));
+        }
+        else if (!macro.writeToFile(fn))
+        {
+            run_macro_error_dialog(
+                GTK_WINDOW(m_view.getMacroDialog()),
+                &macro,
+                _("Could not write the export file."));
+        }
         g_free(fn);
     }
 

@@ -35,10 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_MACRO_KEY_LEN 16
 //#define MAX_MACRO_TEXT_LEN 256
 #define MAX_MACRO_TEXT_LEN 1024 /**< maximum macro replacement text length */
-#define MAX_MACRO_ITEMS 1024     /**< maximum number of macro entries supported */
 #define MAX_MACRO_LINE (MAX_MACRO_TEXT_LEN + MAX_MACRO_KEY_LEN) /**< max line buffer length for macro storage */
-
-#define MACRO_MEM_SIZE (1024*128) /**< macro table memory buffer size (128KB) */
 
 #define CP_US_ANSI 1252 /**< default Windows ANSI code page */
 

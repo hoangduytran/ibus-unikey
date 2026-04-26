@@ -34,6 +34,10 @@
 #include "keycons.h"
 #include "charset.h"
 
+#include <cstddef>
+#include <string>
+#include <vector>
+
 #if defined(_WIN32)
     #if defined(UNIKEYHOOK)
         #define DllInterface   __declspec( dllexport )
@@ -47,7 +51,17 @@
 #endif
 
 /**
- * @brief Entry header for macro key/text pairs stored inside `m_macroMem`.
+ * @brief Return values for getLastError() after a failed add/load/write.
+ */
+#define MACTAB_ERR_OK 0
+#define MACTAB_ERR_OOM 1
+#define MACTAB_ERR_CONVERT 2
+#define MACTAB_ERR_PARSE 3
+#define MACTAB_ERR_IO 4
+#define MACTAB_ERR_INCOMPLETE 5 /**< e.g. load or sync lost one or more rows */
+
+/**
+ * @brief Entry header for macro key/text pairs stored inside m_macroMem.
  */
 struct MacroDef
 {
@@ -73,12 +87,13 @@ public:
 
     /**
      * @brief Load macro table from file.
-     * @return 0 on success, nonzero on failure.
+     * @return 0 on failure, 1 on success.
      */
     int loadFromFile(const char *fname);
 
     /**
      * @brief Serialize macro table to file.
+     * @return 0 on failure, 1 on success.
      */
     int writeToFile(const char *fname);
 
@@ -103,7 +118,25 @@ public:
     /**
      * @brief Number of macro entries currently loaded.
      */
-    int getCount() { return m_count; }
+    int getCount() { return (int)m_table.size(); }
+
+    /**
+     * @brief Last error after a failed operation (mactab.h MACTAB_ERR_*).
+     */
+    int getLastError() const { return m_lastError; }
+
+    /**
+     * @brief English/locale string for the last error, or "" if none.
+     */
+    const char *getLastErrorMessage() const { return m_lastErrorMessage.c_str(); }
+
+    /**
+     * @brief Bytes used in the macro key/text payload area.
+     */
+    size_t getOccupiedBytes() const
+    {
+        return (size_t)m_occupied;
+    }
 
     /**
      * @brief Remove all macro items and reset memory.
@@ -112,31 +145,26 @@ public:
 
     /**
      * @brief Add a macro item from text string with charset hint.
+     * @return new entry index, or -1 on failure.
      */
     int addItem(const char *item, int charset);
 
     /**
      * @brief Add a macro item from binary key/text blocks.
+     * @return new entry index, or -1 on failure.
      */
     int addItem(const void *key, const void *text, int charset);
 
 protected:
-    /**
-     * @brief Read persisted macro table header for loading versioned format.
-     */
     bool readHeader(FILE *f, int & version);
-
-    /**
-     * @brief Write persisted macro table header.
-     */
     void writeHeader(FILE *f);
+    void setLastError(int code, const char *msg = "");
 
-    MacroDef m_table[MAX_MACRO_ITEMS]; /**< in-memory macro entry metadata */
-    char m_macroMem[MACRO_MEM_SIZE];   /**< raw storage for macro key/text data */
-
-    int m_count;      /**< number of macro entries loaded */
-    int m_memSize;    /**< total allocated macro memory size */
-    int m_occupied;   /**< bytes currently used in macro memory */
+    std::vector<MacroDef> m_table; /**< in-memory macro entry metadata */
+    std::vector<char> m_macroMem;   /**< raw storage for macro key/text data */
+    int m_occupied;   /**< bytes currently used in m_macroMem */
+    int m_lastError;
+    std::string m_lastErrorMessage;
 };
 
 #endif
