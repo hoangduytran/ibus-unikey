@@ -209,6 +209,18 @@ DllExport int UkLoadKeyOrderMap(const char *fileName, UkKeyMapPair *pMap, int *p
                         if (keyMap[c] != vneNormal) { // If key is already assigned, don't accept this map
                             break; // Break out of loop
                         }
+                        keyMap[c] = UkEvLabelList[i].ev;
+                        pMap[mapCount].action = UkEvLabelList[i].ev;
+                        if (keyMap[c] < vneCount) { // Tone/event keys are stored as uppercase and mirrored.
+                            pMap[mapCount].key = toupper(c);
+                            keyMap[toupper(c)] = UkEvLabelList[i].ev;
+                        }
+                        else {
+                            pMap[mapCount].key = c;
+                        }
+                        mapCount++;
+                        break;
+                    }
                 }
                 // If no label matches value, print error message
                 if (i == UkEvLabelCount) { // If no label matches value, print error message
