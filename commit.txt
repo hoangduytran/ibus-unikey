@@ -1,0 +1,51 @@
+ukengine: split single- and double-byte tables out of data.cpp
+
+## Why
+
+The legacy charset mapping tables for single-byte and double-byte
+encodings (TCVN3, VISCII, VNI-WIN, etc.) previously lived in one very
+large `ukengine/tables/data.cpp` translation unit. That made reviews,
+diffs, and safe edits harder, and it amplified compiler and tooling
+pressure on huge static initializers (including limits around macro
+expansion in some setups).
+
+## What we changed
+
+- **Per-charset sources**: Each single-byte table is now defined in
+  `ukengine/tables/singlebyte/*.cpp` and each double-byte table in
+  `ukengine/tables/doublebytes/*.cpp`, using explicit hex for byte
+  values so the data stays stable and tool-friendly.
+- **Public declarations**: `include/ukengine/tables/singlebytetables.h`
+  and `include/ukengine/tables/doublebytetables.h` declare the
+  `kSingleByte*` and `kDoubleByte*` symbol names used by the engine.
+- **Indirection in `data.cpp`**: `SingleByteTables` and `DoubleByteTables`
+  are no longer 2D array types in the public header. In
+  `include/ukengine/mapping/charset.h` they are arrays of pointers
+  (`unsigned char *SingleByteTables[]` and `UKWORD *DoubleByteTables[]`);
+  `data.cpp` builds those arrays as ordered lists of pointers to the
+  per-charset `k*`, matching the old layout for callers that index by
+  charset id.
+- **Build system**: `ukengine/CMakeLists.txt` compiles the new table
+  sources and links them into the static `ukengine` library. A small
+  `dump_singlebyte_hex` target helps regenerate or compare raw row bytes
+  when working on table data.
+- **Verification tool**: `tools/verify_table_split.py` compares the split
+  sources against a reference `data.cpp` from git (or a file) so
+  refactors can be checked without guessing.
+- **.gitignore**: add `*.py` at repository patterns (if you add other
+  Python under `tools/`, use `git add -f` or narrow the pattern later).
+
+## Files touched (high level)
+
+- New: `include/ukengine/tables/singlebytetables.h`,
+  `include/ukengine/tables/doublebytetables.h`
+- New: `ukengine/tables/singlebyte/*.cpp`, `ukengine/tables/doublebytes/*.cpp`
+- Updated: `ukengine/tables/data.cpp`, `include/ukengine/mapping/charset.h`,
+  `ukengine/CMakeLists.txt`, `.gitignore`
+- New: `tools/dump_singlebyte_hex.cpp`, `tools/verify_table_split.py`
+
+## Suggested check
+
+Build `ukengine` and run `tools/verify_table_split.py` against a known
+good revision (see script help) to confirm table bytes are unchanged at
+the binary level for each charset row.
