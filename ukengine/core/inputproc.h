@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "core/inputproc.h"
+#include <ukengine/core/inputproc.h>

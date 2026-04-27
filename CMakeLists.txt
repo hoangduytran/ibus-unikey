@@ -5,6 +5,9 @@ enable_testing()
 
 cmake_policy(SET CMP0054 NEW)
 
+# compile_commands.json in the build tree (e.g. build/compile_commands.json) for clangd / IDE
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_compile_options(-std=c++11 -Werror)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)

@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "engine/ukengine.h"
+#include <ukengine/engine/ukengine.h>

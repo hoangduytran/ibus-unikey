@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "tables/usrkeymap.h"
+#include <ukengine/tables/usrkeymap.h>

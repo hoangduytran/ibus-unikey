@@ -2,11 +2,11 @@
 #include <cstdio>
 #include <iostream>
 #include <cstring>
-#include "unikey.h"
-#include "ukengine.h"
-#include "vnlexi.h"
-#include "mactab.h"
-#include "charset.h"
+#include <ukengine/engine/unikey.h>
+#include <ukengine/engine/ukengine.h>
+#include <ukengine/mapping/vnlexi.h>
+#include <ukengine/mapping/mactab.h>
+#include <ukengine/mapping/charset.h>
 
 extern UkSharedMem *pShMem;
 extern UkEngine MyKbEngine;
@@ -43,7 +43,7 @@ int main()
 
     std::cout << "ukengine basic flow test passed\n";
 
-    // CMacroTable: more than 1024 entries (regression vs fixed MAX_MACRO_ITEMS cap)
+    /* Regression: CMacroTable must accept more than the old 1024 entry cap. */
     CMacroTable mt;
     mt.init();
     for (int i = 0; i < 1025; i++)

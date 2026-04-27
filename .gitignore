@@ -29,6 +29,7 @@ package.json
 readme_viewer.html
 serve_readme.py
 server.js
+.vscode/
 
 po/Makevars.template
 po/Rules-quot

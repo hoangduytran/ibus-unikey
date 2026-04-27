@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "mapping/vnlexi.h"
+#include <ukengine/mapping/vnlexi.h>

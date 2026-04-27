@@ -111,6 +111,13 @@ typedef uint32_t UKDWORD;	  /**< Conversion pair index type for 32-bit tables / 
 /** @brief Offset to move standard Vietnamese characters into a private range. */
 const StdVnChar VnStdCharOffset = 0x10000;
 
+/** @brief Start quote in Western charsets (offset of byte 0x93 in the Vn mapping order). */
+const StdVnChar StdStartQuote = (VnStdCharOffset + 201);
+/** @brief End quote in Western charsets (offset of byte 0x94). */
+const StdVnChar StdEndQuote = (VnStdCharOffset + 202);
+/** @brief Ellipsis in Western charsets (offset of byte 0x85). */
+const StdVnChar StdEllipsis = (VnStdCharOffset + 190);
+
 /** @brief Sentinel for invalid or unmapped standard Vietnamese characters. */
 const StdVnChar INVALID_STD_CHAR = 0xFFFFFFFF;
 

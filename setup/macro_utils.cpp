@@ -4,12 +4,15 @@
 #include <unordered_map>
 #include <vector>
 
-#include "keycons.h"
+#include <ukengine/mapping/keycons.h>
 #include "macro_utils.h"
 
 #define _(str) gettext(str)
 
-// Case-fold a UTF-8 key for last-wins map (duplicates: last line wins)
+/**
+ * @brief Case-fold a UTF-8 key for last-wins maps (GTK / Unicode-aware).
+ * @param utf8 null-terminated display key
+ */
 static std::string macroKeyFoldForMap(const char *utf8)
 {
     gchar *f = g_utf8_casefold(utf8, -1);
@@ -18,11 +21,6 @@ static std::string macroKeyFoldForMap(const char *utf8)
     return s;
 }
 
-// Append each macro entry from the macro table to the GTK list store.
-// Duplicate keys: only the last occurrence in the table is shown (last wins).
-// Macro text and keys are converted from VN standard charset to XUTF8.
-// @param list destination list store
-// @param macro source macro table
 void list_store_append(GtkListStore *list, CMacroTable *macro)
 {
     const int n = macro->getCount();
@@ -89,7 +87,8 @@ void unikey_macro_to_store(CMacroTable *macro, GtkListStore *store)
     list_store_add_null_item(store);
 }
 
-UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(GtkTreeModel *model, CMacroTable *macro, gboolean reset_table_first)
+UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(
+    GtkTreeModel *model, CMacroTable *macro, gboolean reset_table_first)
 {
     UnikeyMacroTableFillResult r;
     r.total = 0;
@@ -139,7 +138,8 @@ UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(GtkTreeModel *model
     return r;
 }
 
-UnikeyMacroTableFillResult unikey_store_to_macro(GtkListStore *store, CMacroTable *macro)
+UnikeyMacroTableFillResult unikey_store_to_macro(
+    GtkListStore *store, CMacroTable *macro)
 {
     return unikey_gtk_model_fill_macro_table(GTK_TREE_MODEL(store), macro, TRUE);
 }

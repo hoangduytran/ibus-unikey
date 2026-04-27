@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "mapping/keycons.h"
+#include <ukengine/mapping/keycons.h>

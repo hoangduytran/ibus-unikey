@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "core/byteio.h"
+#include <ukengine/core/byteio.h>

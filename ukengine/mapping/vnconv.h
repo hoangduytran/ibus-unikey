@@ -1,3 +1,3 @@
 // compatibility wrapper
 #pragma once
-#include "mapping/vnconv.h"
+#include <ukengine/mapping/vnconv.h>

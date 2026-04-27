@@ -5,7 +5,7 @@
 #include <libintl.h>
 
 #include "macro_utils.h"
-#include "mactab.h"
+#include <ukengine/mapping/mactab.h>
 #include "unikey_config.h"
 
 static SetupController* s_global_controller = nullptr;
@@ -26,7 +26,12 @@ void global_setup_controller_set(SetupController* c)
 
 #define _(str) gettext(str)
 
-// Show a modal error for macro engine failures (uses CMacroTable::getLastErrorMessage()).
+/**
+ * @brief Modal error dialog for macro load/save/export failures.
+ * @param parent transient parent (usually the macro dialog window)
+ * @param macro source of getLastErrorMessage() detail text
+ * @param summary one-line user-facing lead (translated)
+ */
 static void run_macro_error_dialog(GtkWindow *parent, CMacroTable *macro, const char *summary)
 {
     const char *d = macro->getLastErrorMessage();

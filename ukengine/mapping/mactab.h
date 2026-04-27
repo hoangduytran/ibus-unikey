@@ -1,3 +1,3 @@
-// compatibility wrapper
+// compatibility wrapper — include canonical tree under `include/ukengine/` (needs `-I` to `include`)
 #pragma once
-#include "mapping/mactab.h"
+#include <ukengine/mapping/mactab.h>

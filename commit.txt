@@ -1,3 +1,63 @@
+## Why these changes
+
+This update removes fragile macro-table behavior and header/include inconsistencies that were causing maintenance friction and IDE/build mismatch risk. The main goals were:
+- make macro import/export behavior deterministic with clear duplicate-key handling (last definition wins),
+- improve reliability and diagnosability of macro file operations,
+- standardize public include usage so wrapper headers resolve through the canonical `include/ukengine/...` tree,
+- keep legacy symbol/include compatibility while moving ownership of charset constants to the proper mapping header,
+- and improve local developer ergonomics via compile command export.
+
+## What changed
+
+1) Macro table engine (`CMacroTable`) hardening and refactor
+- Reworked macro file load flow into explicit stages (open/header/line-collect/last-wins/apply/sort/finalize).
+- Added helper functions in `mactab.cpp` for newline stripping, key prefix clamping, file open wrappers, line collection, duplicate-key winner map, and row write conversion.
+- Duplicate `key:text` rows now resolve deterministically by folded-key "last line wins" semantics.
+- Strengthened conversion and memory rollback behavior in `addItem(...)` and related paths.
+- Improved comments/docstrings for critical APIs and comparison/search routines.
+- Clarified `lookup(...)` return-pointer lifetime contract in the public header.
+
+2) GTK/setup macro synchronization and UX-related wiring
+- Updated setup-side macro table/model utilities to match the same last-wins duplicate strategy.
+- Expanded API documentation for sync helpers and result counters.
+- Kept UI error reporting path explicit and documented for macro load/save/export failures.
+
+3) Header/include normalization and compatibility wrappers
+- Switched many wrapper and consumer includes to canonical angle-bracket public paths (e.g. `<ukengine/...>`).
+- Updated wrapper comments to clarify that canonical headers live under `include/ukengine/...`.
+- Removed direct dependency on table-layer `data.h` from `charset.cpp`.
+- Moved/centralized special charset constants (`StdStartQuote`, `StdEndQuote`, `StdEllipsis`) into mapping charset header and left table `data.h` as compatibility note/guard.
+
+4) Build/tooling/test touch-ups
+- Enabled `CMAKE_EXPORT_COMPILE_COMMANDS` in CMake to improve clangd/IDE integration.
+- Added `.vscode/` to `.gitignore`.
+- Updated unit test includes to canonical public include paths and kept regression intent comment for >1024 macro entries.
+
+## Changed files
+
+- `.gitignore`
+- `CMakeLists.txt`
+- `include/ukengine/mapping/charset.h`
+- `include/ukengine/mapping/mactab.h`
+- `include/ukengine/tables/data.h`
+- `setup/controller/setup_controller.cpp`
+- `setup/macro_utils.cpp`
+- `setup/macro_utils.h`
+- `tests/ukengine_test.cpp`
+- `ukengine/core/byteio.h`
+- `ukengine/core/inputproc.h`
+- `ukengine/engine/ukengine.h`
+- `ukengine/engine/unikey.h`
+- `ukengine/mapping/charset.cpp`
+- `ukengine/mapping/charset.h`
+- `ukengine/mapping/keycons.h`
+- `ukengine/mapping/mactab.cpp`
+- `ukengine/mapping/mactab.h`
+- `ukengine/mapping/vnconv.h`
+- `ukengine/mapping/vnlexi.h`
+- `ukengine/patterns/pattern.h`
+- `ukengine/tables/data.h`
+- `ukengine/tables/usrkeymap.h`
 ukengine: split single- and double-byte tables out of data.cpp
 
 ## Why

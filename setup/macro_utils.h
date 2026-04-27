@@ -2,7 +2,7 @@
 #define __SETUP_MACRO_UTIL_H__
 
 #include <gtk/gtk.h>
-#include "mactab.h"
+#include <ukengine/mapping/mactab.h>
 
 // Column indices used by macro list store rows.
 enum
@@ -22,10 +22,15 @@ enum
 // @param list targeted list store
 void list_store_add_null_item(GtkListStore *list);
 
-// Append all macro entries from the macro table into the list store.
-// Existing entries in the list store are preserved.
-// @param list target GTK list store for macro entries
-// @param macro source macro table to copy from
+/**
+ * @brief Append macro entries from a CMacroTable into a list store.
+ *
+ * Duplicate keys (after UTF-8 casefold) keep only the last row from the table (last wins).
+ * Existing list rows are left in place; caller usually merges into an existing list when importing.
+ *
+ * @param list destination GTK list store
+ * @param macro source engine macro table
+ */
 void list_store_append(GtkListStore *list, CMacroTable *macro);
 
 // Convert the macro table entries into GTK list store rows.
@@ -35,21 +40,31 @@ void list_store_append(GtkListStore *list, CMacroTable *macro);
 void unikey_macro_to_store(CMacroTable *macro, GtkListStore *store);
 
 /**
- * @brief Result of filling a CMacroTable from GtkTreeModel rows (non-placeholder only).
+ * @brief Counters when syncing GtkTreeModel rows into CMacroTable.
  */
 struct UnikeyMacroTableFillResult
 {
-    int total;  /**< non-placeholder rows seen */
-    int added;  /**< addItem success count */
+    int total;  /**< non-placeholder rows scanned */
+    int added;  /**< successful addItem calls (after last-wins merge, one add per surviving row) */
     int failed; /**< addItem returned -1 */
 };
 
-// Fill a macro table from a tree model. Set reset_table_first to clear the table first
-// (e.g. full sync from a list store). If false, append into the current table (caller usually init()'d it).
+/**
+ * @brief Read macro rows from a tree model and fill CMacroTable.
+ *
+ * Duplicate keys (UTF-8 casefold) only keep the last row in model order (last wins) before
+ * calling addItem. Set @a reset_table_first to clear the table first (e.g. full list-store sync);
+ * if false, only call after macro->init() on an empty table for export.
+ *
+ * @param model GTK tree model (macro dialog columns)
+ * @param macro destination table
+ * @param reset_table_first if TRUE, call resetContent() first
+ */
 UnikeyMacroTableFillResult unikey_gtk_model_fill_macro_table(GtkTreeModel *model, CMacroTable *macro, gboolean reset_table_first);
 
-// Convert GTK list store rows back into the macro table (resets the table first).
-// @return counts for UI to detect silent failures
+/**
+ * @brief Replace engine table from a list store: reset, fill with last-wins, return counts.
+ */
 UnikeyMacroTableFillResult unikey_store_to_macro(GtkListStore *store, CMacroTable *macro);
 
 #endif

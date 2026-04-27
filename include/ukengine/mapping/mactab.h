@@ -31,10 +31,10 @@
  * Contains in-memory macro table and persistence methods to load/save from files.
  */
 
-#include "keycons.h"
 #include "charset.h"
 
 #include <cstddef>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -87,6 +87,12 @@ public:
 
     /**
      * @brief Load macro table from file.
+     *
+     * Reads all lines first. For `key:text` lines, duplicate keys (after an ASCII
+     * case-fold of the key prefix) keep only the **last** line in file order (last wins),
+     * then entries are added and sorted for binary search. Lines without `:` are still
+     * passed to the parser as before.
+     *
      * @return 0 on failure, 1 on success.
      */
     int loadFromFile(const char *fname);
@@ -101,7 +107,8 @@ public:
      * @brief Look up replacement text for a given key sequence.
      *
      * @param key null-terminated StdVnChar sequence
-     * @return heap pointer to replacement or nullptr when not found.
+     * @return pointer into internal macro storage, or nullptr when not found
+     *         (valid until the next mutating call on this table)
      */
     const StdVnChar *lookup(StdVnChar *key);
 
@@ -158,13 +165,14 @@ public:
 protected:
     bool readHeader(FILE *f, int & version);
     void writeHeader(FILE *f);
+    /** @brief Set m_lastError / m_lastErrorMessage after a failed operation. */
     void setLastError(int code, const char *msg = "");
 
     std::vector<MacroDef> m_table; /**< in-memory macro entry metadata */
     std::vector<char> m_macroMem;   /**< raw storage for macro key/text data */
     int m_occupied;   /**< bytes currently used in m_macroMem */
-    int m_lastError;
-    std::string m_lastErrorMessage;
+    int m_lastError;   /**< last MACTAB_ERR_* after a failure; OK when no error */
+    std::string m_lastErrorMessage; /**< short English message for diagnostics / UI */
 };
 
 #endif
