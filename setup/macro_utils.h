@@ -8,7 +8,8 @@
 enum
 {
     COL_KEY = 0,
-    COL_VALUE
+    COL_VALUE,           // displayed replacement text
+    COL_CANONICAL_INDEX  // canonical row id/index used by default/search projections
 };
 
 // Placeholder text shown for empty macro table rows.

@@ -24,8 +24,11 @@ void SetupView::init()
     m_mainWindow = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
     m_macroDialog = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
     m_treeMacro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
+    m_macroSearchEntry = GTK_ENTRY(gtk_builder_get_object(builder, "entry_macro_search"));
+    m_macroReturnButton = GTK_BUTTON(gtk_builder_get_object(builder, "btn_macro_return"));
 
-    if (m_mainWindow == NULL || m_macroDialog == NULL || m_treeMacro == NULL)
+    if (m_mainWindow == NULL || m_macroDialog == NULL || m_treeMacro == NULL ||
+        m_macroSearchEntry == NULL || m_macroReturnButton == NULL)
     {
         g_error("Failed to resolve required setup widgets from GTK builder");
     }

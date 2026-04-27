@@ -8,35 +8,58 @@ class SetupView
 public:
     SetupView() = default;
 
-    // Load and initialize the GTK UI from builder files.
-    // This resolves the main window, macro dialog, and macro tree widgets.
+    /**
+     * @brief Load and initialize GTK UI from builder files.
+     *
+     * Resolves all required setup widgets, including macro search entry.
+     */
     void init();
 
-    // Show the main setup window.
+    /** @brief Show main setup window and child widgets. */
     void showMainWindow();
 
-    // Show the macro editor dialog.
+    /** @brief Show macro dialog and bring it to foreground. */
     void showMacroDialog();
 
-    // Hide the macro editor dialog.
+    /** @brief Hide macro dialog without destroying widget tree. */
     void hideMacroDialog();
 
-    // Access the main setup window widget.
-    // @return pointer to the main GtkWidget window
+    /**
+     * @brief Get main window widget.
+     * @return Pointer to main `GtkWidget`.
+     */
     GtkWidget *getMainWindow() const { return m_mainWindow; }
 
-    // Access the macro dialog widget.
-    // @return pointer to the macro dialog GtkWidget
+    /**
+     * @brief Get macro dialog widget.
+     * @return Pointer to macro dialog `GtkWidget`.
+     */
     GtkWidget *getMacroDialog() const { return m_macroDialog; }
 
-    // Access the macro tree view widget.
-    // @return pointer to the macro tree GtkTreeView
+    /**
+     * @brief Get macro table tree view widget.
+     * @return Pointer to macro `GtkTreeView`.
+     */
     GtkTreeView *getMacroTree() const { return m_treeMacro; }
+
+    /**
+     * @brief Get macro search entry widget.
+     * @return Pointer to search `GtkEntry`.
+     */
+    GtkEntry *getMacroSearchEntry() const { return m_macroSearchEntry; }
+
+    /**
+     * @brief Get macro return button widget.
+     * @return Pointer to return `GtkButton`.
+     */
+    GtkButton *getMacroReturnButton() const { return m_macroReturnButton; }
 
 private:
     GtkWidget *m_mainWindow = NULL;  // main setup window widget
     GtkWidget *m_macroDialog = NULL; // macro editor dialog widget
     GtkTreeView *m_treeMacro = NULL; // tree view widget for macro entries
+    GtkEntry *m_macroSearchEntry = NULL; // search box above macro table
+    GtkButton *m_macroReturnButton = NULL; // return button for search-list mode
 };
 
 #endif // SETUP_VIEW_H

@@ -8,6 +8,8 @@
       <column type="gchararray"/>
       <!-- column-name value -->
       <column type="gchararray"/>
+      <!-- column-name canonical-index -->
+      <column type="gint"/>
     </columns>
   </object>
   <object class="GtkDialog" id="macro_dialog">
@@ -82,6 +84,22 @@
           <object class="GtkBox" id="box1">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
+            <property name="spacing">6</property>
+            <child>
+              <object class="GtkEntry" id="entry_macro_search">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="placeholder_text" translatable="yes">Search macros (Enter to search, Esc to clear)</property>
+                <signal name="activate" handler="on_macro_search_activate" swapped="no"/>
+                <signal name="key-press-event" handler="on_macro_search_key_press_event" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
             <child>
               <object class="GtkScrolledWindow" id="scrollMacros">
                 <property name="visible">True</property>
@@ -92,6 +110,7 @@
                     <property name="can_focus">True</property>
                     <property name="model">list_macro</property>
                     <property name="search_column">0</property>
+                    <signal name="row-activated" handler="on_tree_macro_row_activated" swapped="no"/>
                     <child internal-child="selection">
                       <object class="GtkTreeSelection" id="treeSelection"/>
                     </child>
@@ -102,9 +121,8 @@
                         <property name="clickable">True</property>
                         <child>
                           <object class="GtkCellRendererText" id="cellrenderertext_key">
-                            <property name="editable">True</property>
+                            <property name="editable">False</property>
                             <property name="width_chars">24</property>
-                            <signal name="edited" handler="on_cell_key_edited" swapped="no"/>
                           </object>
                           <attributes>
                             <attribute name="text">0</attribute>
@@ -119,8 +137,7 @@
                         <property name="clickable">True</property>
                         <child>
                           <object class="GtkCellRendererText" id="cellrenderertext_value">
-                            <property name="editable">True</property>
-                            <signal name="edited" handler="on_cell_value_edited" swapped="no"/>
+                            <property name="editable">False</property>
                           </object>
                           <attributes>
                             <attribute name="text">1</attribute>
@@ -134,40 +151,40 @@
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">0</property>
+                <property name="position">1</property>
               </packing>
             </child>
             <child>
               <object class="GtkBox" id="box4">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="margin_left">8</property>
-                <property name="orientation">vertical</property>
+                <property name="orientation">horizontal</property>
                 <property name="spacing">4</property>
                 <child>
-                  <object class="GtkButton" id="btn_macro_del">
-                    <property name="label">gtk-delete</property>
+                  <object class="GtkButton" id="btn_macro_add">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
-                    <property name="use_stock">True</property>
-                    <signal name="clicked" handler="on_btn_macro_del_clicked" swapped="no"/>
+                    <property name="tooltip_text" translatable="yes">Add</property>
+                    <property name="always_show_image">True</property>
+                    <property name="image">img_macro_add</property>
+                    <signal name="clicked" handler="on_btn_macro_add_clicked" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>
-                    <property name="fill">True</property>
+                    <property name="fill">False</property>
                     <property name="position">0</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="btn_macro_clear">
-                    <property name="label">gtk-clear</property>
+                  <object class="GtkButton" id="btn_macro_edit">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
-                    <property name="use_underline">True</property>
-                    <property name="use_stock">True</property>
-                    <signal name="clicked" handler="on_btn_macro_clear_clicked" swapped="no"/>
+                    <property name="tooltip_text" translatable="yes">Edit</property>
+                    <property name="always_show_image">True</property>
+                    <property name="image">img_macro_edit</property>
+                    <signal name="clicked" handler="on_btn_macro_edit_clicked" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -176,14 +193,51 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkSeparator" id="separator1">
+                  <object class="GtkButton" id="btn_macro_del">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="tooltip_text" translatable="yes">Delete</property>
+                    <property name="always_show_image">True</property>
+                    <property name="image">img_macro_del</property>
+                    <signal name="clicked" handler="on_btn_macro_del_clicked" swapped="no"/>
                   </object>
                   <packing>
                     <property name="expand">False</property>
-                    <property name="fill">True</property>
+                    <property name="fill">False</property>
                     <property name="position">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkButton" id="btn_macro_clear">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="tooltip_text" translatable="yes">Clear</property>
+                    <property name="always_show_image">True</property>
+                    <property name="image">img_macro_clear</property>
+                    <signal name="clicked" handler="on_btn_macro_clear_clicked" swapped="no"/>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="position">3</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkButton" id="btn_macro_return">
+                    <property name="visible">False</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="tooltip_text" translatable="yes">Return</property>
+                    <property name="always_show_image">True</property>
+                    <property name="image">img_macro_return</property>
+                    <signal name="clicked" handler="on_btn_macro_return_clicked" swapped="no"/>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="position">4</property>
                   </packing>
                 </child>
                 <child>
@@ -198,7 +252,7 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">False</property>
-                    <property name="position">3</property>
+                    <property name="position">5</property>
                   </packing>
                 </child>
                 <child>
@@ -213,14 +267,14 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">False</property>
-                    <property name="position">4</property>
+                    <property name="position">6</property>
                   </packing>
                 </child>
               </object>
               <packing>
                 <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="fill">False</property>
+                <property name="position">2</property>
               </packing>
             </child>
           </object>
@@ -236,5 +290,30 @@
       <action-widget response="-6">btn_cancel</action-widget>
       <action-widget response="-5">btn_save</action-widget>
     </action-widgets>
+  </object>
+  <object class="GtkImage" id="img_macro_add">
+    <property name="visible">True</property>
+    <property name="icon_name">list-add-symbolic</property>
+    <property name="icon_size">1</property>
+  </object>
+  <object class="GtkImage" id="img_macro_edit">
+    <property name="visible">True</property>
+    <property name="icon_name">document-edit-symbolic</property>
+    <property name="icon_size">1</property>
+  </object>
+  <object class="GtkImage" id="img_macro_del">
+    <property name="visible">True</property>
+    <property name="icon_name">edit-delete-symbolic</property>
+    <property name="icon_size">1</property>
+  </object>
+  <object class="GtkImage" id="img_macro_clear">
+    <property name="visible">True</property>
+    <property name="icon_name">edit-clear-symbolic</property>
+    <property name="icon_size">1</property>
+  </object>
+  <object class="GtkImage" id="img_macro_return">
+    <property name="visible">True</property>
+    <property name="icon_name">go-previous-symbolic</property>
+    <property name="icon_size">1</property>
   </object>
 </interface>

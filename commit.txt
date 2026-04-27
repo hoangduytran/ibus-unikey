@@ -1,5 +1,65 @@
 ## Why these changes
 
+This update implements the macro-table UX redesign from the extracted plan so large macro sets remain manageable in setup UI without inline-edit fragility.  
+The goals are to make list interaction deterministic and safer (default vs search list), provide explicit icon-driven actions, preserve canonical data integrity while filtering/sorting, and add clear bilingual test plans so behavior can be validated consistently.
+
+## What changed
+
+1) Setup macro UI interaction model (default list + search list)
+- Introduced canonical/default row storage plus search projection behavior in controller logic.
+- Added search activation flow from search entry (Enter to build search list).
+- Kept data edits mapped to canonical rows, even when user actions happen in search mode.
+- Added active-list rendering logic with canonical index tracking in list-store rows.
+
+2) Search/list navigation behavior updates
+- Added explicit `Return` icon button to exit search-list mode and return to default list.
+- `Return` visibility is dynamic: shown only when search-list mode is active and has results; hidden in default mode.
+- Updated keyboard behavior so `Esc` no longer performs search-list exit when search list is active (return is explicit via button).
+
+3) Icon action bar + editing flow
+- Reworked macro dialog action area to icon-first controls (`Add`, `Edit`, `Delete`, `Clear`, `Return`) with hover tooltips.
+- Disabled inline cell editing in tree columns.
+- Added dedicated add/edit dialog flow for macro rows (Replace/With fields).
+- Preserved mode-aware clear behavior:
+  - search mode clear: clear search state / return default list,
+  - default mode clear: confirm then delete all rows.
+
+4) Signal/view/controller wiring and code documentation
+- Added signal handlers for new search and return actions and row activation.
+- Exposed new view getters for search entry and return button.
+- Expanded code comments to Doxygen-style (`@brief`, `@param`, `@return`) on updated API surfaces.
+- Added function progression comments in complex controller paths.
+
+5) Test planning artifacts (bilingual)
+- Added detailed bilingual (English + Vietnamese with accents) test plans under component-specific `tests/` subdirectories.
+- Plans cover:
+  - previous macro-engine commit behavior,
+  - current setup UI search/sort/edit/return behavior,
+  - expected outcomes, conditions, and concrete validation commands.
+- Standardized plans to reference macro fixtures under `tests/macros`.
+
+## Changed files
+
+- `.gitignore`
+- `setup/controller/setup_controller.cpp`
+- `setup/controller/setup_controller.h`
+- `setup/macro_utils.h`
+- `setup/signal_handlers.cpp`
+- `setup/signal_handlers.h`
+- `setup/ui/macro_dialog.ui`
+- `setup/ui/setup_view.cpp`
+- `setup/ui/setup_view.h`
+- `tests/macro-engine/TEST_PLAN_previous_commit_macro_engine.md`
+- `tests/setup-macro-ui/TEST_PLAN_current_commit_search_sort_edit_return.md`
+
+## Verification performed
+
+- `cmake --build build -j` (build succeeds)
+- `ctest --output-on-failure` (no tests discovered in current CTest config)
+- lint checks on changed setup/controller/signal files (clean)
+
+## Why these changes
+
 This update removes fragile macro-table behavior and header/include inconsistencies that were causing maintenance friction and IDE/build mismatch risk. The main goals were:
 - make macro import/export behavior deterministic with clear duplicate-key handling (last definition wins),
 - improve reliability and diagnosability of macro file operations,

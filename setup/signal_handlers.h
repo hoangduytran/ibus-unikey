@@ -2,105 +2,187 @@
 
 extern "C"
 {
-    // Called when the main setup window is destroyed.
-    // @param w window widget being destroyed
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge main window destroy signal.
+     * @param w Destroyed window widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_main_window_destroy(GtkWidget *w, gpointer user_data);
 
-    // Handle key press events on the main window.
-    // @param widget source widget for the event
-    // @param event key event details
-    // @param data optional user data from the signal connection
-    // @return TRUE when the event is handled, FALSE to propagate
+    /**
+     * @brief Bridge key-press event from main window.
+     * @param widget Source widget.
+     * @param event Key event payload.
+     * @param data Optional signal user data.
+     * @return TRUE when handled; FALSE to continue propagation.
+     */
     G_MODULE_EXPORT gboolean on_main_window_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer data);
 
-    // Handle the close button click event.
-    // @param btn close button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge close-button click event.
+     * @param btn Close button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_close_clicked(GtkButton *btn, gpointer user_data);
 
-    // Handle a setting toggle button change event.
-    // @param btn toggle button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge setting toggle change event.
+     * @param btn Toggle button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_setting_toggled(GtkToggleButton *btn, gpointer user_data);
 
-    // Initialize a setting toggle from stored configuration.
-    // @param btn toggle button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge setting-toggle realize event.
+     * @param btn Toggle button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_setting_realize(GtkToggleButton *btn, gpointer user_data);
 
-    // Handle the macro edit button click.
-    // @param btn macro edit button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge top-level macro edit button click.
+     * @param btn Macro edit button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_macroedit_clicked(GtkButton *btn, gpointer user_data);
 
-    // Handle changes to the input method combo box.
-    // @param cbb combo box widget for input methods
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge input-method combo change event.
+     * @param cbb Input-method combo box.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_input_method_changed(GtkComboBox *cbb, gpointer user_data);
 
-    // Initialize the input method combo box from stored configuration.
-    // @param cbb combo box widget for input methods
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge input-method combo realize event.
+     * @param cbb Input-method combo box.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_input_method_realize(GtkComboBox *cbb, gpointer user_data);
 
-    // Handle changes to the output charset combo box.
-    // @param cbb combo box widget for output charsets
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge output-charset combo change event.
+     * @param cbb Output-charset combo box.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_output_charset_changed(GtkComboBox *cbb, gpointer user_data);
 
-    // Initialize the output charset combo box from stored configuration.
-    // @param cbb combo box widget for output charsets
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge output-charset combo realize event.
+     * @param cbb Output-charset combo box.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_output_charset_realize(GtkComboBox *cbb, gpointer user_data);
 
-    // Handle delete events on the macro dialog window.
-    // @param wid macro dialog widget
-    // @param ev event details for the delete event
-    // @param user_data optional user data from the signal connection
-    // @return TRUE when the dialog delete event is handled
+    /**
+     * @brief Bridge delete-event from macro dialog.
+     * @param wid Macro dialog widget.
+     * @param ev Delete event payload.
+     * @param user_data Optional signal user data.
+     * @return TRUE when event was handled.
+     */
     G_MODULE_EXPORT gboolean on_macro_dialog_delete(GtkWidget *wid, GdkEvent *ev, gpointer user_data);
 
-    // Hide the macro dialog in response to the hide action.
-    // @param btn button widget that triggered the hide action
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge macro dialog hide request.
+     * @param btn Button widget source.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void macro_dialog_hide(GtkButton *btn, gpointer user_data);
 
-    // Handle the macro delete button click.
-    // @param button delete button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge macro delete action button click.
+     * @param button Delete button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_macro_del_clicked(GtkButton *button, gpointer user_data);
 
-    // Handle the macro clear button click.
-    // @param button clear button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge macro add action button click.
+     * @param button Add button widget.
+     * @param user_data Optional signal user data.
+     */
+    G_MODULE_EXPORT void on_btn_macro_add_clicked(GtkButton *button, gpointer user_data);
+
+    /**
+     * @brief Bridge macro edit action button click.
+     * @param button Edit button widget.
+     * @param user_data Optional signal user data.
+     */
+    G_MODULE_EXPORT void on_btn_macro_edit_clicked(GtkButton *button, gpointer user_data);
+
+    /**
+     * @brief Bridge macro clear action button click.
+     * @param button Clear button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_macro_clear_clicked(GtkButton *button, gpointer user_data);
 
-    // Handle the macro import button click.
-    // @param button import button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge macro return action button click.
+     * @param button Return button widget.
+     * @param user_data Optional signal user data.
+     */
+    G_MODULE_EXPORT void on_btn_macro_return_clicked(GtkButton *button, gpointer user_data);
+
+    /**
+     * @brief Bridge macro import action button click.
+     * @param button Import button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_macro_import_clicked(GtkButton *button, gpointer user_data);
 
-    // Handle the macro export button click.
-    // @param button export button widget
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge macro export action button click.
+     * @param button Export button widget.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_btn_macro_export_clicked(GtkButton *button, gpointer user_data);
 
-    // Handle edits to macro key cells in the macro table.
-    // @param celltext cell renderer for the edited key cell
-    // @param string_path path string identifying the edited row
-    // @param newkey new key text entered by the user
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge Enter activation from macro search entry.
+     * @param entry Search entry widget.
+     * @param user_data Optional signal user data.
+     */
+    G_MODULE_EXPORT void on_macro_search_activate(GtkEntry *entry, gpointer user_data);
+
+    /**
+     * @brief Bridge key events from macro search entry.
+     * @param widget Search entry widget.
+     * @param event Key event payload.
+     * @param user_data Optional signal user data.
+     * @return TRUE when handled.
+     */
+    G_MODULE_EXPORT gboolean on_macro_search_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer user_data);
+
+    /**
+     * @brief Bridge row activation from macro table.
+     * @param tree_view Macro table tree view.
+     * @param path Activated row path.
+     * @param column Activated column.
+     * @param user_data Optional signal user data.
+     */
+    G_MODULE_EXPORT void on_tree_macro_row_activated(GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewColumn *column, gpointer user_data);
+
+    /**
+     * @brief Bridge legacy key-cell edited signal (inline edit disabled).
+     * @param celltext Edited cell renderer.
+     * @param string_path GTK row path string.
+     * @param newkey New key text.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_cell_key_edited(GtkCellRendererText *celltext,
                                             const gchar *string_path,
                                             const gchar *newkey,
                                             gpointer user_data);
 
-    // Handle edits to macro value cells in the macro table.
-    // @param celltext cell renderer for the edited value cell
-    // @param string_path path string identifying the edited row
-    // @param newvalue new value text entered by the user
-    // @param user_data optional user data from the signal connection
+    /**
+     * @brief Bridge legacy value-cell edited signal (inline edit disabled).
+     * @param celltext Edited cell renderer.
+     * @param string_path GTK row path string.
+     * @param newvalue New replacement text.
+     * @param user_data Optional signal user data.
+     */
     G_MODULE_EXPORT void on_cell_value_edited(GtkCellRendererText *celltext,
                                               const gchar *string_path,
                                               const gchar *newvalue,
