@@ -30,6 +30,7 @@ readme_viewer.html
 serve_readme.py
 server.js
 .vscode/
+.clangd
 
 po/Makevars.template
 po/Rules-quot
@@ -40,4 +41,3 @@ po/insert-header.sin
 po/quot.sed
 po/remove-potcdate.sin
 po/POTFILES
-.clangd/
