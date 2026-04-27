@@ -38,6 +38,8 @@ Macro test data location:
 - Dùng các tệp macro trong `tests/macros` cho mọi trường hợp cần tập tin macros trong kế hoạch này.
 - If a file is missing, create it in `tests/macros` using the provided snippets.
 - Nếu thiếu file, hãy tạo file đó trong `tests/macros` bằng các snippet đã cung cấp.
+- Temporary instruction: do not use YAML (`*.yaml`) or PLIST (`*.plist`) macro files in this plan yet.
+- Hướng dẫn tạm thời: chưa sử dụng file macro YAML (`*.yaml`) hoặc PLIST (`*.plist`) trong kế hoạch này.
 
 ## Chuẩn bị môi trường (Tiếng Việt)
 

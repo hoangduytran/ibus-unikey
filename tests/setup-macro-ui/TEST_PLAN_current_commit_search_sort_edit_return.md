@@ -44,6 +44,7 @@ Run setup app:
 Macro test data location:
 - Use macro scenario files under `tests/macros` when importing test data.
 - Keep deterministic test fixtures in `tests/macros` so all testers use the same inputs.
+- Temporary instruction: do not use YAML (`*.yaml`) or PLIST (`*.plist`) macro files for these UI scenarios yet.
 
 ## Chuẩn bị môi trường (Tiếng Việt)
 
@@ -69,6 +70,7 @@ Chạy setup app:
 Vị trí dữ liệu test macro:
 - Dùng các file kịch bản macro trong `tests/macros` khi import dữ liệu test.
 - Giữ fixture cố định trong `tests/macros` để mọi người test cùng một đầu vào.
+- Hướng dẫn tạm thời: chưa sử dụng file macro YAML (`*.yaml`) hoặc PLIST (`*.plist`) cho các kịch bản UI này.
 
 ---
 
