@@ -4,6 +4,7 @@ set(SOURCES
     mapping/charset.cpp
     mapping/macro_cache.cpp
     mapping/mactab.cpp
+    mapping/text_macro_format.cpp
     tables/data.cpp
     tables/singlebyte/tcvn3.cpp
     tables/singlebyte/vps.cpp

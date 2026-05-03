@@ -1,6 +1,6 @@
 # ibus-unikey Technical Note
 
-This note is intended to match the current source tree in this repository as of 19 April 2026.
+This note is intended to match the current source tree in this repository as of 19 April 2026, with macro I/O and cache details updated in May 2026.
 
 If this note, older screenshots, or user-facing help text disagree with the implementation, the code wins. In a few places the shipped help text is stale; those mismatches are called out explicitly below.
 
@@ -96,6 +96,9 @@ This layer classifies keys into semantic Vietnamese events, tracks the current w
 - `ukengine/mapping/charset.cpp`
 - `include/ukengine/mapping/charset.h`
 - `include/ukengine/mapping/vnconv.h`
+- `include/ukengine/mapping/macro_format.h` (abstract `MacroFormat`)
+- `include/ukengine/mapping/text_macro_format.h` / `ukengine/mapping/text_macro_format.cpp` (`TextMacroFormat`, UniKey TEXT import/export)
+- `include/ukengine/mapping/macro_cache.h` / `ukengine/mapping/macro_cache.cpp` (`CacheManagement`, binary sidecar)
 - `ukengine/mapping/mactab.cpp`
 - `include/ukengine/mapping/mactab.h`
 - `include/ukengine/mapping/keycons.h`
@@ -420,39 +423,49 @@ This is defined by `UNIKEY_MACRO_FILE` in `src/config/unikey_config.h`.
 
 ## 7. Macro System
 
-The macro subsystem is real, persistent, and more structured than a simple GTK table, but it also has clear hard limits.
+The macro subsystem is real and persistent. **TEXT files on disk remain human-readable** (`key:value` lines with a version header). **Binary hashing and fingerprints exist only in an optional sidecar** managed separately from TEXT export.
 
-### 7.1 Storage format and load/save behavior
+### 7.1 Modular I/O (`MacroFormat`, `TextMacroFormat`, `CacheManagement`)
 
-The macro table is stored in a plain text file. `CMacroTable::writeToFile()` writes a version header followed by `key:text` rows in UTF-8.
+Responsibilities are split to match the planning doc (`project_planning/ukengine/…macros_unbounded_keys…`):
 
-Header example:
+| Component | Role |
+|-----------|------|
+| **`MacroFormat`** (`macro_format.h`) | Abstract import/export by path; future codecs (JSON, plist, …) can subclass without changing `CMacroTable` storage. |
+| **`TextMacroFormat`** | UniKey’s legacy TEXT codec: optional UTF-8 BOM / header, `key:text` rows, **last-wins** when the same folded ASCII key prefix appears on multiple lines, unbounded line reads, UTF-8 vs VIQR based on header `version=`. **Export writes only text** (no binary, no digest lines). |
+| **`CacheManagement`** | **Precomputed binary cache** for the **canonical** macro file path: **sidecar file** `"{macroTextPath}.ukmcache"` in the same directory, **FNV-1a 64** over the **raw bytes** of the TEXT file for invalidation, **atomic** write via a `*.tmp` in that directory then rename. **Import from an arbitrary user path** should still parse TEXT (or another `MacroFormat`); trusting a sidecar for non-canonical paths is a future, explicit feature. |
+| **`CMacroTable`** | In-memory `MacroEntry` rows (heap-backed `std::vector<StdVnChar>` key and text), **`std::unordered_map`** on **folded** key bytes (last insert wins for the same fold). |
+
+**Canonical load/save orchestration** (see `CMacroTable::loadFromFile` / `writeToFile` in `mactab.cpp`):
+
+1. **Load:** `CacheManagement::tryLoad` → if fingerprint matches, hydrate table + rebuild map; else **`TextMacroFormat::importFromPath`** parses TEXT; if file was legacy VIQR, rewrite UTF-8 via `writeToFile`; if already UTF-8, **`CacheManagement::persist`** refreshes the sidecar.
+2. **Save:** **`TextMacroFormat::exportToPath`** writes TEXT only, then **`CacheManagement::persist`**.
+
+### 7.2 TEXT storage format and on-disk layout
+
+`TextMacroFormat::exportToPath` writes the header then **`key:text` rows in UTF-8**, **sorted by key** using the same folded-order comparison used historically (VNSTANDARD sequence compare with tone folding). Export does **not** emit cache metadata.
+
+Header example (non-Windows; Windows build may prepend a UTF-8 BOM in the header line):
 
 ```text
 DO NOT DELETE THIS LINE*** version=1 ***
 ```
 
-Loading behavior:
+Loading (`importFromPath`): reads header; **`version=1`** ⇒ UTF-8 lines; otherwise treats body as VIQR and **`writeToFile` upgrades** the file to UTF-8 on successful load.
 
-- `loadFromFile()` reads the optional version header
-- version 1 is treated as UTF-8
-- older files are read as VIQR and converted on save
-- entries are sorted in memory with `qsort()` after load
+### 7.3 Lookup behavior
 
-### 7.2 Lookup behavior
-
-Macro lookup is not a raw byte-string comparison against what is currently visible on screen.
+Macro lookup is not a raw on-screen byte comparison.
 
 `UkEngine::macroMatch()`:
 
-1. scans backward in the current composition buffer
-2. constructs a standardized Vietnamese key sequence
-3. calls `CMacroTable::lookup()`
-4. `lookup()` performs `bsearch()` against the sorted in-memory macro table
+1. scans backward in the current composition buffer (bounded by **`MACRO_MATCH_MAX_KEY_UNITS`** in `keycons.h` for the typing path)
+2. builds a standardized Vietnamese key sequence (`StdVnChar`)
+3. calls **`CMacroTable::lookup()`**, which consults an **`std::unordered_map`** keyed by **folded** key bytes (`MacroEntry` storage + fold rules aligned with the TEXT loader’s semantics).
 
-This is why macro expansion stays consistent across output encodings.
+That keeps expansion coherent across output charsets.
 
-### 7.3 Case behavior
+### 7.4 Case behavior
 
 Current behavior is:
 
@@ -460,25 +473,17 @@ Current behavior is:
 - all-uppercase trigger -> uppercase replacement
 - mixed-case trigger -> stored replacement is preserved
 
-### 7.4 Trigger separator preservation
+### 7.5 Trigger separator preservation
 
 After macro text is emitted, the engine appends the triggering separator character when space or enter caused the expansion. This is why a macro can expand and still keep the final space or line break.
 
-### 7.5 Hard limits in current code
+### 7.6 Runtime policy vs storage
 
-These limits are defined in `include/ukengine/mapping/keycons.h`:
+- **Typing path:** `MACRO_MATCH_MAX_KEY_UNITS` (4096) caps how long a trigger the engine will match while typing; this is **not** a cap on what can be **stored** in the table.
+- **Per-entry key and replacement text** in `CMacroTable` are **not** limited to the old 16/1024 compile-time macro buffer sizes; memory and conversion failures still apply.
+- The setup UI may still impose its own GTK buffer or validation limits independent of the engine.
 
-- `MAX_MACRO_KEY_LEN = 16`
-- `MAX_MACRO_TEXT_LEN = 1024`
-- Per-entry and line-buffer limits; **macro entry count and total payload size** are not fixed at compile time: `CMacroTable` uses `std::vector` for the metadata array and a growable `std::vector<char>` for the offset-based key/text blob (see `mactab.h` / `mactab.cpp`).
-
-Important implementation detail:
-
-- plain-text key parsing truncates a macro key to at most 15 characters plus null terminator
-- the setup UI truncates edited macro value text to `MAX_MACRO_TEXT_LEN - 1` bytes before null termination
-- very large tables are bounded only by available memory and `addItem` / load failure reporting
-
-### 7.6 Macro editor capabilities that exist today
+### 7.7 Macro editor capabilities that exist today
 
 The current GTK macro dialog supports:
 
@@ -489,7 +494,7 @@ The current GTK macro dialog supports:
 - duplicate macro keys: **last wins** (case-folded) when loading/saving and when merging the engine table into the list store; the cell editor no longer blocks duplicate keys
 - incremental tree-view search behavior on column 0 because `search_column` is set
 
-### 7.7 Macro editor capabilities that do not exist as a finished user-facing feature
+### 7.8 Macro editor capabilities that do not exist as a finished user-facing feature
 
 The current code does **not** provide:
 
@@ -501,7 +506,7 @@ The current code does **not** provide:
 
 There is one nuance here:
 
-- the storage layer sorts macros internally for lookup efficiency
+- **TEXT export** writes rows in a **stable sorted key order**; **lookup** does not require sorting (hash map)
 - the UI layer does not expose a real sorting feature for the user
 
 Those are different things and should not be conflated.
@@ -543,8 +548,8 @@ The current repository has the following verified limitations or gaps.
 
 ### 9.2 Macro limits and UX gaps
 
-- Maximum macro entry count is 1024.
-- Macro key length is tightly bounded by compile-time buffers.
+- Macro row count is **not** capped at 1024 in `CMacroTable` (practical limit is memory).
+- Macro key/value storage is heap-backed; the typing-path probe still uses **`MACRO_MATCH_MAX_KEY_UNITS`**.
 - Macro editing is table-based only.
 - There is no dedicated searchable or filterable macro browser.
 - There is no real user-facing sorting feature in the macro dialog.
@@ -629,6 +634,8 @@ These files are the most important entry points when tracing the current impleme
 - Input event definitions: `include/ukengine/core/inputproc.h`
 - Vietnamese symbolic vocabulary: `include/ukengine/mapping/vnlexi.h`
 - Charset conversion layer: `ukengine/mapping/charset.cpp`
+- Macro TEXT codec: `ukengine/mapping/text_macro_format.cpp`
+- Macro binary cache: `ukengine/mapping/macro_cache.cpp`
 - Macro persistence and lookup: `ukengine/mapping/mactab.cpp`
 - Shared limits and enums: `include/ukengine/mapping/keycons.h`
 
@@ -677,10 +684,8 @@ Luồng là:
 
 ### 12.5 Giới hạn macro hiện tại
 
-- tối đa 1024 macro
-- `MAX_MACRO_KEY_LEN = 16`
-- `MAX_MACRO_TEXT_LEN = 1024`
-- bộ nhớ macro nội bộ 128 KB
+- Số macro và độ dài key/value trong bảng không còn bị giới hạn cứng kiểu cũ (1024 macro / 16 ký tự key); giới hạn thực tế chủ yếu là bộ nhớ; đường gõ vẫn có giới hạn `MACRO_MATCH_MAX_KEY_UNITS` khi thử khớp macro.
+- File TEXT có sidecar cache nhị phân tùy chọn `.ukmcache` (xem mục 7).
 
 UI macro hiện có import và export file text kiểu UniKey, nhưng chưa có:
 

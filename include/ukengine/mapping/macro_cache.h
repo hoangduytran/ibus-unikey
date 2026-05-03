@@ -2,20 +2,29 @@
 #ifndef UKENGINE_MACRO_CACHE_H
 #define UKENGINE_MACRO_CACHE_H
 
+#include <string>
+
 class CMacroTable;
 
 /**
- * @brief Precomputed binary cache next to the macro text file (same directory,
- *        `.ukmcache` suffix). FNV-1a 64 fingerprint of the text file must match.
+ * @brief Binary sidecar cache next to the canonical macro text file.
+ *
+ * Path rule: same directory as the text file, suffix `.ukmcache`.
+ * Fingerprint: FNV-1a 64 over raw bytes of the macro text file (must match for load).
+ *
+ * Hashing and binary records exist only here—not in TextMacroFormat export output.
  */
-class MacroBinaryCache
+class CacheManagement
 {
 public:
-    /** @return true if cache was loaded into @a table. */
-    static bool tryLoadForTextFile(const char *macroTextPath, CMacroTable &table);
+    /** @return Sidecar path `{macroTextPath}.ukmcache`. */
+    static std::string sidecarPathFor(const char *macroTextPath);
+
+    /** @return true if valid cache was loaded into @a table. */
+    static bool tryLoad(const char *macroTextPath, CMacroTable &table);
 
     /** Write sidecar after a successful text file state is known. */
-    static void persistForTextFile(const char *macroTextPath, const CMacroTable &table);
+    static void persist(const char *macroTextPath, const CMacroTable &table);
 };
 
 #endif

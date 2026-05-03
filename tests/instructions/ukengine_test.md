@@ -39,7 +39,7 @@ ctest -R ukengine_test --output-on-failure
 - Failure in the **1025-row** loop implies macro storage or `addItem` regression.
 - Failures in **long key/value** or **duplicate key** point to `utf8ToStdVnVector`, `foldedLookupKeyBytes`, or vector growth.
 - Failures in **file last-wins** point to `mactabFoldKeyPrefix` / `buildLastWinsLineIndex` / `applyLoadedLinesToTable`.
-- Failures in **sidecar** point to `MacroBinaryCache`, FNV fingerprint over the macro text file, or `persistForTextFile` / `tryLoadForTextFile`.
+- Failures in **sidecar** point to `CacheManagement`, FNV fingerprint over the macro text file, or `persist` / `tryLoad`.
 
 ## Extend this test
 

@@ -18,11 +18,6 @@ namespace {
 const char kMagic[8] = {'U', 'K', 'M', 'C', 'C', 'H', '0', '1'};
 const uint16_t kFormatVersion = 1;
 
-std::string cachePathFor(const char *macroTextPath)
-{
-    return std::string(macroTextPath) + ".ukmcache";
-}
-
 uint64_t fnv1a64File(const char *path)
 {
     FILE *f = fopen(path, "rb");
@@ -94,9 +89,16 @@ void writeU64(FILE *f, uint64_t v)
 
 } // namespace
 
-bool MacroBinaryCache::tryLoadForTextFile(const char *macroTextPath, CMacroTable &table)
+std::string CacheManagement::sidecarPathFor(const char *macroTextPath)
 {
-    const std::string cpath = cachePathFor(macroTextPath);
+    if (!macroTextPath)
+        return std::string();
+    return std::string(macroTextPath) + ".ukmcache";
+}
+
+bool CacheManagement::tryLoad(const char *macroTextPath, CMacroTable &table)
+{
+    const std::string cpath = sidecarPathFor(macroTextPath);
     FILE *cf = fopen(cpath.c_str(), "rb");
     if (!cf)
         return false;
@@ -160,14 +162,15 @@ bool MacroBinaryCache::tryLoadForTextFile(const char *macroTextPath, CMacroTable
     return true;
 }
 
-void MacroBinaryCache::persistForTextFile(const char *macroTextPath, const CMacroTable &table)
+void CacheManagement::persist(const char *macroTextPath, const CMacroTable &table)
 {
     const uint64_t fp = fnv1a64File(macroTextPath);
     if (fp == 0)
         return;
 
-    const std::string tmp = cachePathFor(macroTextPath) + ".tmp";
-    const std::string finalPath = cachePathFor(macroTextPath);
+    const std::string sidecar = sidecarPathFor(macroTextPath);
+    const std::string tmp = sidecar + ".tmp";
+    const std::string finalPath = sidecar;
 
     FILE *cf = fopen(tmp.c_str(), "wb");
     if (!cf)

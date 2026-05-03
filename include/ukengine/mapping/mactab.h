@@ -50,7 +50,8 @@ struct MacroEntry {
 typedef char TCHAR;
 #endif
 
-class MacroBinaryCache;
+class CacheManagement;
+class TextMacroFormat;
 
 /**
  * @class CMacroTable
@@ -58,7 +59,8 @@ class MacroBinaryCache;
  */
 class DllInterface CMacroTable
 {
-    friend class MacroBinaryCache;
+    friend class CacheManagement;
+    friend class TextMacroFormat;
 
 public:
     void init();
@@ -93,8 +95,6 @@ public:
     int addItem(const void *key, const void *text, int charset);
 
 protected:
-    bool readHeader(FILE *f, int &version);
-    void writeHeader(FILE *f);
     void setLastError(int code, const char *msg = "");
 
     void rebuildLookupMap();
