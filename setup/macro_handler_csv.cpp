@@ -251,11 +251,19 @@ gboolean DelimitedTextMacroHandler::export_to_path(const gchar *path_utf8, CMacr
   std::string output;
   output.reserve((size_t)row_count * 64 + 32);
 
-  if (!append_libcsv_quoted_field(&output, "trigger"))
-    goto export_fail;
+  const auto append_cell = [&](const std::string &cell_utf8) -> gboolean {
+    if (!append_libcsv_quoted_field(&output, cell_utf8)) {
+      macro_interchange::fail(err, "Could not encode CSV/TSV field for export");
+      return FALSE;
+    }
+    return TRUE;
+  };
+
+  if (!append_cell("trigger"))
+    return FALSE;
   output.push_back(delim_);
-  if (!append_libcsv_quoted_field(&output, "content"))
-    goto export_fail;
+  if (!append_cell("content"))
+    return FALSE;
   output.push_back('\n');
 
   for (int row_index = 0; row_index < row_count; row_index++) {
@@ -266,21 +274,17 @@ gboolean DelimitedTextMacroHandler::export_to_path(const gchar *path_utf8, CMacr
       macro_interchange::fail(err, "Could not encode macro row for CSV/TSV export");
       return FALSE;
     }
-    if (!append_libcsv_quoted_field(&output, trigger_utf8))
-      goto export_fail;
+    if (!append_cell(trigger_utf8))
+      return FALSE;
     output.push_back(delim_);
-    if (!append_libcsv_quoted_field(&output, phrase_utf8))
-      goto export_fail;
+    if (!append_cell(phrase_utf8))
+      return FALSE;
     output.push_back('\n');
   }
 
   if (!g_file_set_contents(path_utf8, output.data(), (gssize)output.size(), err))
     return FALSE;
   return TRUE;
-
-export_fail:
-  macro_interchange::fail(err, "Could not encode CSV/TSV field for export");
-  return FALSE;
 }
 
 namespace {

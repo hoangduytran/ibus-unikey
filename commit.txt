@@ -1,165 +1,57 @@
-Commit: modular splits (ukengine charset, engine, syllable tables; setup controller) + clangd + include hygiene
-============================================================================================================
+Commit summary: refactor CSV/TSV macro export control flow; extract VnFileConvert file I/O into helpers
 
-This commit replaces several very large translation units with smaller, topic-focused
-files so behavior stays the same while navigation, review, and clangd diagnostics
-improve. It also aligns `.clangd` with ukengine compile flags and trims redundant
-includes so “unused include” (brown) warnings go away where we touched the tree.
-
-Root / tooling
---------------
-.clangd
-  Reason: Point clangd at `build/` for `compile_commands.json` when present, and add
-  `-Wno-invalid-source-encoding` and `-Wno-narrowing` so IDE analysis matches the
-  ukengine target (fewer false positives on legacy comments / conversions).
-
-ukengine/CMakeLists.txt
-  Reason: Register new source lists: `mapping/charset_components/*.cpp`,
-  `engine/engine_components/*.cpp`, and `engine/engine_components/table_components/*.cpp`.
-  Remove monolithic `mapping/charset.cpp`, `engine/ukengine.cpp`. Add include directories
-  `${CMAKE_CURRENT_SOURCE_DIR}/engine` and `${CMAKE_CURRENT_SOURCE_DIR}/mapping` so
-  short includes like `engine_components/...` and `charset_components/...` resolve.
-
-setup/CMakeLists.txt
-  Reason: Replace `controller/setup_controller.cpp` with the
-  `controller/setup_controller_components/*.cpp` list. `controller/` was already on
-  the include path so `setup_controller_components/...` works without extra CMake.
-
-Deleted monoliths (logic moved, not removed)
---------------------------------------------
-ukengine/mapping/charset.cpp
-  Reason: Split into `charset_components/` (see below). Public API remains in
-  `include/ukengine/mapping/charset.h`.
-
-ukengine/engine/ukengine.cpp
-  Reason: Split into `engine/engine_components/*.cpp` plus `table_components/` (see below).
-  `engine/unikey.cpp` and public headers unchanged for external callers.
-
-setup/controller/setup_controller.cpp
-  Reason: Split into `setup_controller_components/` (see below). `setup_controller.h`
-  remains the public API.
-
-New: ukengine/mapping/charset_components/
-------------------------------------------
-charset_internal.h
-  Reason: Shared `extern` for LoVowel, HiVowel, VIQREscapes, VIQREscCount and declaration
-  of `wideCharCompare` so multiple `.cpp` files can link without duplicating globals.
-
-charset_globals.cpp
-  Reason: Global tables/objects: LoVowel, HiVowel, SgCharsets, DbCharsets, VnCharsetLibObj.
-
-charset_base.cpp
-  Reason: VnCharset, VnInternalCharset, SingleByteCharset.
-
-charset_unicode.cpp
-  Reason: Unicode stack: wideCharCompare, UnicodeCharset, composite/UTF-8/ref/hex/C-string
-  charsets, hexDigitValue, etc.
-
-charset_doublebyte.cpp
-  Reason: DoubleByteCharset.
-
-charset_viqr.cpp
-  Reason: VIQR tables and VIQRCharset. `VIQREscCount` is non-const so the library TU can
-  link the symbol declared in charset_internal.h.
-
-charset_utf8_viqr.cpp
-  Reason: UTF8VIQRCharset.
-
-charset_library.cpp
-  Reason: CVnCharsetLib (ctor/dtor/getVnCharset) and VnConv{Set,Get,Reset}Options.
-
-charset_wincp1258.cpp
-  Reason: WinCP1258Charset.
-
-charset_stdvn.cpp
-  Reason: StdVnToUpper, StdVnToLower, StdVnGetRoot.
-
-New: ukengine/engine/engine_components/
------------------------------------------
-engine_internal.h
-  Reason: Shared macros/helpers (ENTER_CHAR, case helpers, vnToLower/changeCase) and
-  `vnlexi.h` only. Keycons was removed from here so the header is not falsely “unused”;
-  TUs that need MACRO_* include `keycons.h` themselves.
-
-engine_tables_shared.h
-  Reason: Syllable struct types and extern declarations for table data and lookups.
-  Now includes only `ukengine.h` (which already pulls charset + vnlexi) to avoid duplicate
-  / redundant includes flagged by clangd.
-
-append.cpp, diacritic_processing.cpp, process_io.cpp, state.cpp, macro.cpp,
-restore.cpp, setup.cpp, word.cpp
-  Reason: Pieces of the former `ukengine.cpp`, each file scoped by feature (append VIQR,
-  diacritics, I/O and process(), state/buffer, macro match, restore, SetupUnikeyEngine,
-  word helpers). Includes trimmed so each file only pulls what it uses (e.g. restore and
-  macro use `ukengine.h` where syllable-table headers are unnecessary; macro keeps
-  `engine_internal.h` + `keycons.h` + `vnconv.h`).
-
-New: ukengine/engine/engine_components/table_components/
--------------------------------------------------------
-table_internal.h
-  Reason: Declarations for tripleVowelCompare, tripleConCompare, VCPairCompare.
-
-table_globals.cpp
-  Reason: IsVnVowel, SpecialWesternChars, IsoStdVnCharMap.
-
-table_vseq_cseq.cpp
-  Reason: VSeqList, CSeqList, VSeqCount/CSeqCount, SortedVSeqList, SortedCSeqList.
-
-table_vcpair.cpp
-  Reason: VCPairList, VCPairCount.
-
-table_keyproc.cpp
-  Reason: UkKeyProcList, UkEngine::m_classInit (typedef stays in engine_tables_shared.h).
-
-table_comparators.cpp
-  Reason: Comparator functions for qsort/bsearch.
-
-table_validators.cpp
-  Reason: isValidCV, isValidVC, isValidCVC.
-
-table_init.cpp
-  Reason: engineClassInit; extern AZLexiUpper/Lower; needs comparators + qsort.
-
-table_lookup.cpp
-  Reason: lookupVSeq, lookupCSeq.
-
-New: setup/controller/setup_controller_components/
-----------------------------------------------------
-setup_controller_internal.h
-  Reason: Shared helpers: macro error dialog, UTF-8 casefold, MacroEditorShell, list row
-  append, import/export choosers.
-
-setup_controller_helpers.cpp
-  Reason: Implementations for the above (gettext, GTK, macro file chooser hooks).
-
-setup_controller_globals.cpp
-  Reason: global_setup_controller / global_setup_controller_set.
-
-setup_controller_lifecycle.cpp
-  Reason: ctor, init, main window key/destroy, Close.
-
-setup_controller_config.cpp
-  Reason: Combo/toggle GSettings sync (input method, output charset).
-
-setup_controller_macro_io.cpp
-  Reason: Macro preferences modal (load/save), import/export paths, merge/commit.
-
-setup_controller_macro_model.cpp
-  Reason: Macro list store, search projection, sorting, canonical row model.
-
-setup_controller_macro_editor.cpp
-  Reason: Non-modal add/edit dialog, clear-all confirm.
-
-Rationale summary
------------------
-- Smaller files reduce merge conflicts and make ownership of logic obvious.
-- Shared headers (`charset_internal.h`, `table_internal.h`, `setup_controller_internal.h`,
-  `engine_tables_shared.h`) keep link-visible symbols and types in one place.
-- Include hygiene satisfies clangd “unused include” diagnostics without changing runtime
-  behavior.
-
-How to verify
+Changed files
 -------------
-cmake -B build && cmake --build build -j
-build/tests/ukengine_test
-ibus-setup-unikey / ibus-engine-unikey build as part of full tree.
+- setup/macro_handler_csv.cpp
+- ukengine/roof/convert.cpp
+- commit.txt (this file)
+
+setup/macro_handler_csv.cpp
+-----------------------------
+What changed
+- Replaced the `export_fail:` label and `goto export_fail` pattern in
+  `DelimitedTextMacroHandler::export_to_path` with a small local lambda,
+  `append_cell`, that wraps `append_libcsv_quoted_field` and calls
+  `macro_interchange::fail` when quoting/encoding fails.
+- Header cells (`trigger`, `content`) and each data row now call the same
+  `append_cell` path and return `FALSE` directly on failure.
+
+Why
+- Avoids `goto` for a straight-line export routine and centralizes the error
+  message for “could not encode CSV/TSV field” in one place.
+- Behavior is unchanged: same quoted-field encoding, same `GError` reporting,
+  same successful write via `g_file_set_contents`.
+
+ukengine/roof/convert.cpp
+-------------------------
+What changed
+- Introduced an anonymous namespace with helpers:
+  - `vnFileConvert_return` — preserves Win32 `_setmode(_fileno(stdin), _O_BINARY)`
+    in the epilogue when the input path was stdin (same intent as the old
+    `end:` block).
+  - `vnFileConvert_open_inf` — stdin vs `fopen(..., "rb")`, with stdin binary
+    mode on Windows when applicable.
+  - `vnFileConvert_open_outf` — stdout vs temp file next to the output path
+    (same temporary name layout and `mkstemp` + `fopen` sequence as before);
+    on failure, closes the already-open input stream.
+  - `vnFileConvert_close_after_convert` — closes streams and runs the same
+    `remove` calls on the final path and temp name gated on conversion result
+    as the previous implementation.
+- `VnFileConvert` is now a short orchestration of these helpers plus
+  `vnFileStreamConvert`, using `input_from_stdin` so early-error returns still
+  invoke the correct Win32 stdin restoration when stdin was used.
+
+Why
+- Makes `VnFileConvert` easier to read and to reason about (open → convert →
+  close → return) without altering the documented contract.
+- Early-return paths for open failures now share the same stdin cleanup strategy
+  as the main return path, matching the old `goto end` behavior.
+
+Note
+- The success-path `remove` behavior for the real output path and the temp file
+  is intentionally left as in the prior code; this commit is a structural
+  refactor only.
+
+Verification
+------------
+- Build/tests as relevant for this tree (e.g. existing CMake targets) after pull.

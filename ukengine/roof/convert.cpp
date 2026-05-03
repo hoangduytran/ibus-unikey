@@ -32,6 +32,92 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "vnconv.h"
 
+namespace {
+
+/** Win32 stdin handling: keeps the same `_setmode` behavior as the former `VnFileConvert` epilogue. */
+inline int vnFileConvert_return(FILE *stdin_like_inf, int code) {
+#if defined(_WIN32)
+	if (stdin_like_inf == stdin)
+		_setmode(_fileno(stdin), _O_BINARY);
+#else
+	(void)stdin_like_inf;
+#endif
+	return code;
+}
+
+/**
+ * Open input as stdin (NULL @a path) or as a binary file.
+ * @return 0, or `VNCONV_ERR_INPUT_FILE` when the file cannot be opened.
+ */
+int vnFileConvert_open_inf(const char *path, FILE **inf) {
+	if (path == NULL) {
+		*inf = stdin;
+#if defined(_WIN32)
+		_setmode(_fileno(stdin), _O_BINARY);
+#endif
+		return 0;
+	}
+	*inf = fopen(path, "rb");
+	if (*inf == NULL)
+		return VNCONV_ERR_INPUT_FILE;
+	return 0;
+}
+
+/**
+ * Open output as stdout (@a path NULL), or create a writable temp beside @a path / cwd (same-file semantics).
+ * On failure, closes @a inf.
+ * @return 0, or `VNCONV_ERR_OUTPUT_FILE`.
+ */
+int vnFileConvert_open_outf(FILE *inf, const char *path, char tmpNameOut[32], FILE **outf) {
+	if (path == NULL) {
+		*outf = stdout;
+		return 0;
+	}
+
+	char outDir[256];
+	strcpy(outDir, path);
+
+#if defined(_WIN32)
+	char *slash = strrchr(outDir, '\\');
+#else
+	char *slash = strrchr(outDir, '/');
+#endif
+	if (slash == NULL)
+		outDir[0] = 0;
+	else
+		*slash = 0;
+
+	strcpy(tmpNameOut, outDir);
+	strcat(tmpNameOut, "XXXXXX");
+
+	if (mkstemp(tmpNameOut) == -1) {
+		fclose(inf);
+		return VNCONV_ERR_OUTPUT_FILE;
+	}
+	*outf = fopen(tmpNameOut, "wb");
+	if (*outf == NULL) {
+		fclose(inf);
+		return VNCONV_ERR_OUTPUT_FILE;
+	}
+	return 0;
+}
+
+/** Close streams after conversion; replaces output via remove when temp path mode succeeded. */
+void vnFileConvert_close_after_convert(FILE *inf, FILE *outf, const char *finalPathUtf8,
+				       const char *tmpNameUtf8, int convert_ok) {
+	if (inf != stdin)
+		fclose(inf);
+	if (outf != stdout) {
+		fclose(outf);
+		if (convert_ok == 0) {
+			remove(finalPathUtf8);
+			remove(tmpNameUtf8);
+		}
+	}
+}
+
+} // namespace
+
 /**
  * @brief Converts a file stream from one Vietnamese charset to another.
  *
@@ -133,79 +219,23 @@ DllExport int VnConvert(int inCharset, int outCharset, UKBYTE *input, UKBYTE *ou
  */
 DllExport int VnFileConvert(int inCharset, int outCharset, const char *inFile, const char *outFile)
 {
-	FILE *inf = NULL; // input file pointer
+	FILE *inf = NULL;
 	FILE *outf = NULL;
-	int ret = 0; // return value
-	char tmpName[32]; // temporary file name
+	char tmpName[32]; // unused when writing to stdout
+	const bool input_from_stdin = (inFile == NULL);
 
-	if (inFile == NULL) { // if input file is NULL
-		inf = stdin; // set input file pointer to stdin
-#if defined(_WIN32)
-		_setmode( _fileno(stdin), _O_BINARY); // set input file pointer to stdin
-#endif
-	}
-	else {
-		inf = fopen(inFile, "rb"); // open input file
-		if (inf == NULL) {
-			ret = VNCONV_ERR_INPUT_FILE; // set return value to VNCONV_ERR_INPUT_FILE
-			goto end; // goto end
-		}
-	}
+	int err = vnFileConvert_open_inf(inFile, &inf);
+	if (err != 0)
+		return vnFileConvert_return(NULL, err);
 
-	if (outFile == NULL) // if output file is NULL
-		outf = stdout; // set output file pointer to stdout
-	else {
-		// setup temporary output file (because real output file may be the same as input file
-		char outDir[256]; // output directory
-		strcpy(outDir, outFile); // copy output file name to output directory string
+	err = vnFileConvert_open_outf(inf, outFile, tmpName, &outf);
+	if (err != 0)
+		return vnFileConvert_return(input_from_stdin ? stdin : NULL, err);
 
-#if defined(_WIN32)
-		char *p = strrchr(outDir, '\\'); // find last backslash in output directory string
-#else
-		char *p = strrchr(outDir, '/'); // find last forward slash in output directory string
-#endif
+	const int ret = vnFileStreamConvert(inCharset, outCharset, inf, outf);
+	vnFileConvert_close_after_convert(inf, outf, outFile, tmpName, ret);
 
-		if (p == NULL) // if last backslash or forward slash is not found
-			outDir[0] = 0; // set first character of output directory string to NULL
-		else
-			*p = 0; // set last backslash or forward slash to NULL
-
-		strcpy(tmpName, outDir); // copy output directory string to temporary file name string
-        strcat(tmpName, "XXXXXX"); // append "XXXXXX" to temporary file name string
-
-		if (mkstemp(tmpName) == -1) { // create temporary file
-			fclose(inf);
-			ret = VNCONV_ERR_OUTPUT_FILE; // set return value to VNCONV_ERR_OUTPUT_FILE
-			goto end; // goto end
-		}
-		outf = fopen(tmpName, "wb"); // open output file
-
-		if (outf == NULL) { // if output file is not opened
-			fclose(inf);
-			ret = VNCONV_ERR_OUTPUT_FILE; // set return value to VNCONV_ERR_OUTPUT_FILE
-			goto end; // goto end
-		}
-	}
-
-
-	ret = vnFileStreamConvert(inCharset, outCharset, inf, outf); // convert file stream
-	if (inf != stdin) // if input file is not stdin
-		fclose(inf); // close input file
-	if (outf != stdout) { // if output file is not stdout
-		fclose(outf); // close output file
-		if (ret == 0) { // if conversion is successful
-			remove(outFile); // remove output file
-			remove(tmpName); // remove temporary file
-		}
-	}
-
-end:
-#if defined(_WIN32)
-	if (inf == stdin) { // if input file is stdin
-		_setmode( _fileno(stdin), _O_BINARY); // set input file pointer to stdin
-	}
-#endif
-	return ret; // return error code
+	return vnFileConvert_return(input_from_stdin ? stdin : NULL, ret);
 }
 
 /**
