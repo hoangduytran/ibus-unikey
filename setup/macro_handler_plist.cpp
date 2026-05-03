@@ -1,11 +1,22 @@
 // -*- mode:c++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
+/**
+ * @file macro_handler_plist.cpp
+ * @brief Import and export macro tables using Apple property lists (macOS text replacements).
+ *
+ * Uses libplist for XML and binary plist parsing and for XML serialization on export.
+ * Shortcut/phrase keys mirror common macOS naming (`shortcut`/`phrase` plus `replace`/`with` aliases).
+ */
+
 #include <setup/macro_handler_plist.h>
 
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <memory>
 #include <sstream>
 #include <string>
+
+#include <plist/plist.h>
 
 #include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
@@ -14,134 +25,137 @@
 
 namespace {
 
-void trim_inline(std::string *s) {
-  while (!s->empty() && ((*s)[0] == ' ' || (*s)[0] == '\t'))
-    s->erase(s->begin());
-  while (!s->empty() && (s->back() == ' ' || s->back() == '\t' || s->back() == '\r'))
-    s->pop_back();
-}
-
-void xml_unescape_simple(std::string *s) {
-  std::string out;
-  out.reserve(s->size());
-  for (size_t i = 0; i < s->size(); i++) {
-    if ((*s)[i] != '&') {
-      out.push_back((*s)[i]);
-      continue;
-    }
-    if (s->compare(i, 5, "&amp;") == 0) {
-      out.push_back('&');
-      i += 4;
-    } else if (s->compare(i, 4, "&lt;") == 0) {
-      out.push_back('<');
-      i += 3;
-    } else if (s->compare(i, 4, "&gt;") == 0) {
-      out.push_back('>');
-      i += 3;
-    } else if (s->compare(i, 6, "&quot;") == 0) {
-      out.push_back('"');
-      i += 5;
-    } else if (s->compare(i, 6, "&apos;") == 0) {
-      out.push_back('\'');
-      i += 5;
-    } else
-      out.push_back('&');
-  }
-  *s = std::move(out);
-}
-
-bool plist_dict_pair_strings(const std::string &dictxml, std::string *shortcut_out, std::string *phrase_out) {
-  shortcut_out->clear();
-  phrase_out->clear();
-  size_t p = 0;
-  while ((p = dictxml.find("<key>", p)) != std::string::npos) {
-    size_t kstart = p + 5;
-    size_t kend = dictxml.find("</key>", kstart);
-    if (kend == std::string::npos)
-      break;
-    std::string key = dictxml.substr(kstart, kend - kstart);
-    trim_inline(&key);
-
-    size_t lt = dictxml.find('<', kend + 6);
-    if (lt == std::string::npos)
-      break;
-
-    std::string val;
-    if (dictxml.compare(lt, 8, "<string>") == 0) {
-      size_t vs = lt + 8;
-      size_t ve = dictxml.find("</string>", vs);
-      if (ve == std::string::npos)
-        break;
-      val = dictxml.substr(vs, ve - vs);
-      xml_unescape_simple(&val);
-    } else if (dictxml.compare(lt, 9, "<integer>") == 0) {
-      size_t vs = lt + 9;
-      size_t ve = dictxml.find("</integer>", vs);
-      if (ve == std::string::npos)
-        break;
-      val = dictxml.substr(vs, ve - vs);
-      trim_inline(&val);
-    } else {
-      p = kend + 6;
-      continue;
-    }
-
-    if (key == "shortcut" || key == "replace")
-      *shortcut_out = val;
-    else if (key == "phrase" || key == "with")
-      *phrase_out = val;
-
-    p = kend + 6;
-  }
-  return !shortcut_out->empty() && !phrase_out->empty();
-}
-
-bool plist_extract_next_dict(const std::string &raw, size_t *pos_inout, std::string *dict_out) {
-  size_t pos = raw.find("<dict>", *pos_inout);
-  if (pos == std::string::npos)
-    return false;
-  size_t depth = 1;
-  size_t scan = pos + 6;
-  while (depth > 0 && scan < raw.size()) {
-    size_t nd = raw.find("<dict>", scan);
-    size_t nc = raw.find("</dict>", scan);
-    if (nc == std::string::npos)
-      return false;
-    if (nd != std::string::npos && nd < nc) {
-      depth++;
-      scan = nd + 6;
-    } else {
-      depth--;
-      if (depth == 0) {
-        *dict_out = raw.substr(pos, nc + 7 - pos);
-        *pos_inout = nc + 7;
-        return true;
-      }
-      scan = nc + 7;
-    }
-  }
-  return false;
-}
-
+/**
+ * @brief Detects the binary plist magic prefix used by Apple and libplist.
+ *
+ * XML plists are parsed separately; this avoids mis-routing UTF-8/XML text that happens to contain
+ * similar bytes at the start of the buffer.
+ */
 bool is_binary_plist_prefix(const std::string &bytes) {
   return bytes.size() >= 8 && std::memcmp(bytes.data(), "bplist00", 8) == 0;
 }
 
-std::string xml_escape_attr(const std::string &s) {
-  std::string o;
-  for (unsigned char c : s) {
-    if (c == '&')
-      o += "&amp;";
-    else if (c == '<')
-      o += "&lt;";
-    else if (c == '>')
-      o += "&gt;";
-    else if (c == '"')
-      o += "&quot;";
+/**
+ * @brief Converts a plist scalar node to UTF-8 text for macro shortcut or phrase fields.
+ *
+ * Integer and real nodes are stringified so legacy plist exports that use `<integer>` still load.
+ *
+ * @param node Property list node (must not be null for a successful conversion).
+ * @param out Receives decoded text on success.
+ * @return True if @a node was a supported scalar type; false if the type cannot be represented as text here.
+ */
+bool node_to_utf8_text(plist_t node, std::string *out) {
+  if (!node)
+    return false;
+  const plist_type node_type = plist_get_node_type(node);
+  if (node_type == PLIST_STRING) {
+    uint64_t byte_length = 0;
+    const char *string_ptr = plist_get_string_ptr(node, &byte_length);
+    if (string_ptr)
+      out->assign(string_ptr, byte_length);
     else
-      o += (char)c;
+      out->clear();
+    return true;
   }
-  return o;
+  if (node_type == PLIST_INT || node_type == PLIST_UINT) {
+    int64_t signed_int_value = 0;
+    plist_get_int_val(node, &signed_int_value);
+    *out = std::to_string(signed_int_value);
+    return true;
+  }
+  if (node_type == PLIST_REAL) {
+    double real_value = 0;
+    plist_get_real_val(node, &real_value);
+    std::ostringstream oss;
+    oss << real_value;
+    *out = oss.str();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @brief Reads shortcut and phrase strings from one plist dictionary entry.
+ *
+ * Accepts macOS field names and common synonyms; both fields must decode to non-empty UTF-8.
+ *
+ * @param dict Dictionary node.
+ * @param shortcut Output shortcut (trigger) text.
+ * @param phrase Output expansion text.
+ * @return True if both fields were found, decoded, and are non-empty.
+ */
+bool dict_get_macro_pair(plist_t dict, std::string *shortcut, std::string *phrase) {
+  shortcut->clear();
+  phrase->clear();
+  if (!dict || plist_get_node_type(dict) != PLIST_DICT)
+    return false;
+
+  plist_t shortcut_node = plist_dict_get_item(dict, "shortcut");
+  if (!shortcut_node)
+    shortcut_node = plist_dict_get_item(dict, "replace");
+  plist_t phrase_node = plist_dict_get_item(dict, "phrase");
+  if (!phrase_node)
+    phrase_node = plist_dict_get_item(dict, "with");
+  if (!shortcut_node || !phrase_node)
+    return false;
+
+  if (!node_to_utf8_text(shortcut_node, shortcut) || !node_to_utf8_text(phrase_node, phrase))
+    return false;
+  return !shortcut->empty() && !phrase->empty();
+}
+
+/**
+ * @brief Walks the plist root and appends matching entries into @a table.
+ *
+ * Supports a root array of replacement dicts (standard macOS export) or a single root dict for a
+ * one-row file. Dicts that lack a usable pair are skipped without failing the whole import.
+ *
+ * @param root Parsed plist root; ownership remains with the caller until plist_free.
+ * @param table Macro table to fill (already cleared by the importer).
+ * @param stats Stats counters when non-null; attempted/imported/skipped are updated like other handlers.
+ * @return False if @a root is neither an array nor a dictionary.
+ */
+bool import_macros_from_plist_root(plist_t root, CMacroTable *table, MacroInterchangeStatistics *stats) {
+  if (PLIST_IS_DICT(root)) {
+    std::string shortcut_text, phrase_text;
+    if (!dict_get_macro_pair(root, &shortcut_text, &phrase_text))
+      return true;
+    if (stats)
+      stats->attempted++;
+    const int add_item_result =
+        table->addItem(shortcut_text.c_str(), phrase_text.c_str(), CONV_CHARSET_UNIUTF8);
+    if (add_item_result >= 0) {
+      if (stats)
+        stats->imported++;
+    } else {
+      if (stats)
+        stats->skipped_malformed++;
+    }
+    return true;
+  }
+
+  if (!PLIST_IS_ARRAY(root))
+    return false;
+
+  const uint32_t entry_count = plist_array_get_size(root);
+  for (uint32_t entry_index = 0; entry_index < entry_count; entry_index++) {
+    plist_t array_item = plist_array_get_item(root, entry_index);
+    std::string shortcut_text, phrase_text;
+    if (!dict_get_macro_pair(array_item, &shortcut_text, &phrase_text))
+      continue;
+    if (stats)
+      stats->attempted++;
+    const int add_item_result =
+        table->addItem(shortcut_text.c_str(), phrase_text.c_str(), CONV_CHARSET_UNIUTF8);
+    if (add_item_result >= 0) {
+      if (stats)
+        stats->imported++;
+    } else {
+      if (stats)
+        stats->skipped_malformed++;
+    }
+  }
+  return true;
 }
 
 } // namespace
@@ -150,81 +164,113 @@ MacroInterchangeForcedFormat PlistTextReplacementMacroHandler::forced_format() c
   return MACRO_INTERCHANGE_FORMAT_PLIST;
 }
 
+/**
+ * @brief Loads replacement shortcuts from an XML or binary plist file.
+ *
+ * libplist APIs take a uint32 length; oversize files are rejected. On success the parsed tree is
+ * freed before return; on parse error @a err is set and any partial tree is released.
+ */
 gboolean PlistTextReplacementMacroHandler::import_from_path(const gchar *path_utf8, CMacroTable *table,
                                                             MacroInterchangeStatistics *stats, GError **err) {
   std::string raw;
   if (!macro_interchange::read_file_utf8(path_utf8, &raw, err))
     return FALSE;
 
-  if (is_binary_plist_prefix(raw)) {
-    macro_interchange::fail(err, "Binary property lists are not supported for macro import");
+  if (raw.size() > (size_t)UINT32_MAX) {
+    macro_interchange::fail(err, "Property list is too large to load");
     return FALSE;
   }
 
+  // Strip UTF-8 BOM so plist_from_xml sees a decl or plist element first.
   if (raw.size() >= 3 && (unsigned char)raw[0] == 0xEF && (unsigned char)raw[1] == 0xBB &&
       (unsigned char)raw[2] == 0xBF)
     raw.erase(0, 3);
 
-  size_t scan_pos = 0;
-  std::string dict;
-  while (plist_extract_next_dict(raw, &scan_pos, &dict)) {
-    std::string sc, ph;
-    if (plist_dict_pair_strings(dict, &sc, &ph)) {
-      if (stats)
-        stats->attempted++;
-      const int r = table->addItem(sc.c_str(), ph.c_str(), CONV_CHARSET_UNIUTF8);
-      if (r >= 0) {
-        if (stats)
-          stats->imported++;
-      } else {
-        if (stats)
-          stats->skipped_malformed++;
-      }
-    }
+  plist_t root = nullptr;
+  plist_err_t plist_error;
+  if (is_binary_plist_prefix(raw))
+    plist_error = plist_from_bin(raw.data(), (uint32_t)raw.size(), &root);
+  else
+    plist_error = plist_from_xml(raw.data(), (uint32_t)raw.size(), &root);
+
+  if (plist_error != PLIST_ERR_SUCCESS || !root) {
+    if (root)
+      plist_free(root);
+    macro_interchange::fail(err, "Could not parse property list (XML or binary)");
+    return FALSE;
   }
 
+  if (!import_macros_from_plist_root(root, table, stats)) {
+    plist_free(root);
+    macro_interchange::fail(err,
+                            "Plist macro file must contain an array (or one replacement dictionary) at the root");
+    return FALSE;
+  }
+
+  plist_free(root);
   return TRUE;
 }
 
+/**
+ * @brief Writes a UTF-8 XML plist with an array of replacement dicts (phrase + shortcut).
+ *
+ * Row order matches other exporters via `sorted_macro_row_indices`. The plist tree owns child nodes;
+ * `plist_to_xml` allocates @a xml_out with malloc; caller must free that buffer after writing the file.
+ */
 gboolean PlistTextReplacementMacroHandler::export_to_path(const gchar *path_utf8, CMacroTable *table,
                                                          MacroInterchangeStatistics *stats, GError **err) {
   (void)stats;
   const std::vector<int> order = macro_interchange::sorted_macro_row_indices(table);
-  const int n = table->getCount();
+  const int row_count = table->getCount();
 
-  std::ostringstream oss;
-  oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-  oss << "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
-         "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
-  oss << "<plist version=\"1.0\">\n";
-  oss << "<array>\n";
+  plist_t root = plist_new_array();
+  if (!root) {
+    macro_interchange::fail(err, "Could not allocate plist for export");
+    return FALSE;
+  }
 
-  for (int i = 0; i < n; i++) {
-    const int ix = order[(size_t)i];
-    std::string keyu, valu;
-    if (!macro_interchange::utf8_from_std_keytext(table->getKey(ix), &keyu) ||
-        !macro_interchange::utf8_from_std_keytext(table->getText(ix), &valu)) {
+  for (int row_index = 0; row_index < row_count; row_index++) {
+    const int sorted_row_index = order[(size_t)row_index];
+    std::string trigger_utf8, phrase_utf8;
+    if (!macro_interchange::utf8_from_std_keytext(table->getKey(sorted_row_index), &trigger_utf8) ||
+        !macro_interchange::utf8_from_std_keytext(table->getText(sorted_row_index), &phrase_utf8)) {
+      plist_free(root);
       macro_interchange::fail(err, "Could not encode macro row for plist export");
       return FALSE;
     }
-    oss << "    <dict>\n";
-    oss << "        <key>phrase</key>\n";
-    oss << "        <string>" << xml_escape_attr(valu) << "</string>\n";
-    oss << "        <key>shortcut</key>\n";
-    oss << "        <string>" << xml_escape_attr(keyu) << "</string>\n";
-    oss << "    </dict>\n";
+
+    plist_t entry = plist_new_dict();
+    if (!entry) {
+      plist_free(root);
+      macro_interchange::fail(err, "Could not allocate plist dictionary for export");
+      return FALSE;
+    }
+    plist_dict_set_item(entry, "phrase", plist_new_string(phrase_utf8.c_str()));
+    plist_dict_set_item(entry, "shortcut", plist_new_string(trigger_utf8.c_str()));
+    plist_array_append_item(root, entry);
   }
 
-  oss << "</array>\n";
-  oss << "</plist>\n";
-  const std::string data = oss.str();
-  if (!g_file_set_contents(path_utf8, data.data(), (gssize)data.size(), err))
+  char *xml_out = nullptr;
+  uint32_t xml_len = 0;
+  const plist_err_t serialize_error = plist_to_xml(root, &xml_out, &xml_len);
+  plist_free(root);
+  root = nullptr;
+
+  if (serialize_error != PLIST_ERR_SUCCESS || !xml_out) {
+    if (xml_out)
+      free(xml_out);
+    macro_interchange::fail(err, "Could not serialize property list to XML");
     return FALSE;
-  return TRUE;
+  }
+
+  const gboolean write_succeeded = g_file_set_contents(path_utf8, xml_out, (gssize)xml_len, err) ? TRUE : FALSE;
+  free(xml_out);
+  return write_succeeded;
 }
 
 namespace {
 
+/** Registers `PlistTextReplacementMacroHandler` for `.plist` and `MACRO_INTERCHANGE_FORMAT_PLIST`. */
 struct PlistTextReplacementMacroHandlerRegistrar {
   PlistTextReplacementMacroHandlerRegistrar() {
     MacroFormatHandlerRegistry::register_handler(

@@ -1,5 +1,15 @@
 find_package(PkgConfig)
 pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+pkg_search_module(LIBPLIST REQUIRED libplist-2.0 libplist)
+pkg_check_modules(JSON_GLIB REQUIRED json-glib-1.0)
+
+find_path(LIBCSV_INCLUDE_DIR csv.h)
+find_library(LIBCSV_LIBRARY NAMES csv)
+if(NOT LIBCSV_INCLUDE_DIR OR NOT LIBCSV_LIBRARY)
+  message(FATAL_ERROR "libcsv not found (e.g. install libcsv-dev / libcsv-devel)")
+endif()
+
+find_package(yaml-cpp REQUIRED)
 
 add_library(macro_interchange STATIC
     macro_interchange_common.cpp
@@ -16,11 +26,18 @@ target_include_directories(macro_interchange PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include/setup
     ${GTK3_INCLUDE_DIRS}
+    ${LIBPLIST_INCLUDE_DIRS}
+    ${JSON_GLIB_INCLUDE_DIRS}
+    ${LIBCSV_INCLUDE_DIR}
 )
 
 target_link_libraries(macro_interchange PUBLIC
     ukengine
     ${GTK3_LIBRARIES}
+    ${LIBPLIST_LDFLAGS}
+    ${JSON_GLIB_LDFLAGS}
+    ${LIBCSV_LIBRARY}
+    yaml-cpp::yaml-cpp
 )
 
 add_executable(ibus-setup-unikey

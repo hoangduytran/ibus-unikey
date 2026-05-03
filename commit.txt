@@ -1,42 +1,105 @@
-Macro UI: refactor dialog/search/save paths; factor CMacroTable insert pipeline; GTK test README
+feat(setup): macro interchange handlers with library-backed codecs
 
-Summary
--------
-This iteration tightens macro handling in both the GTK setup controller and the engine macro table, and improves hand-testing docs for CMake/GTK setups.
+## Why
 
-Reasons
--------
-- **Setup (GTK):** The macro dialog had grown dense (search vs full list, import/export, cell edits, standalone editor). Breaking out named helpers improves readability, aligns list rendering with a single canonical `m_defaultEntries` source, and avoids repeated brittle logic when syncing the tree model.
-- **Search:** Folding trigger and expansion text once per edit (`key_folded` / `value_folded`) avoids repeated UTF-8 casefold work on every keystroke during filter passes.
-- **Engine (`CMacroTable`):** Sharing decode (`decodeMacroKeyAndText`) and keyed upsert (`upsertMacroByFoldKey`) between `addItem` and clearer documentation matches the documented “folded-key map, last wins” behavior and simplifies future callers (hydration/import) that already work in vector form.
-- **Tests / docs:** `tests/instructions/README.md` spelled out GTK only briefly; distro-specific package names and quick “is GTK installed?” checks reduce friction when GTK macro targets are optional.
+ibus-unikey users need to import/export macros in formats common on other platforms
+(Espanso YAML, generic JSON, Apple text-replacement plist, CSV/TSV) without maintaining
+fragile hand-rolled parsers. Using well-tested libraries reduces corner-case bugs, improves
+binary plist and structured YAML support, and keeps CI honest about real dependencies.
 
-What changed (by area)
-----------------------
-**`include/ukengine/mapping/mactab.h` / `ukengine/mapping/mactab.cpp`**
-- Declared and implemented `decodeMacroKeyAndText` (charset → `StdVnChar` vectors) and `upsertMacroByFoldKey` (fold string → append or overwrite row, last-wins semantics).
-- `addItem` now delegates to those helpers; `loadFromFile` / `writeToFile` flow documented in file-level comments alongside `TextMacroFormat` and `CacheManagement`.
-- Extended Doxygen-style comments on lookup, helpers, and internal helpers (`foldedLookupKeyBytes`, `vnConvertGrow`); reformatted implementations for clarity (consistent brace/layout style in touched regions).
+## What changed
 
-**`setup/controller/setup_controller.h` / `setup/controller/setup_controller.cpp`**
-- Extended `MacroUiRow` with precomputed UTF-8 casefold caches for substring search (`key_folded`, `value_folded`) plus `refreshMacroUiRowSearchFoldCaches`.
-- New helpers include: combo activation matching stored IDs (`activateComboBoxRowIfStoredIdMatches`), full-list vs search projection rendering (`renderFullCanonicalMacroListInto`, `renderSearchProjectionInto`), macro dialog save pipeline slices (`prefillMacroEditorFromCanonical`, `commitMacroEditorSavePayload`, `applyLoadedMacroTableToDialogUi`, `repopulateMacroStoreFromDefaultEntriesForSave`, `commitMacroEditDialogSave`, `commitMacroExportToPath`, `commitMacroImportMergeFromPath`).
-- Class-level docs for `SetupController` and forward-declared `CMacroTable` linkage for clearer signatures.
+### Interchange architecture
 
-**`tests/instructions/README.md`**
-- Expand GTK 3 prerequisite guidance: Debian/Ubuntu `apt`, Fedora `dnf`, Arch `pacman`, and verification commands (`dpkg`, `pkg-config`, `rpm`, `pacman -Qi`).
+- **Registry:** `MacroFormatHandlerRegistry` maps `MacroInterchangeForcedFormat` and lowercase
+  file suffixes to handler factories (thread-safe; factories run outside the registry lock).
+- **Dispatch:** `macro_file_io.cpp` routes import/export by explicit format or AUTO from the path.
+- **Shared utilities:** `macro_interchange_common.cpp` centralizes `GError` domain helpers, file
+  slurping, extension sniffing, `StdVnChar` folding order, and UTF-8 encoding for export.
 
-Files changed
--------------
-- `include/ukengine/mapping/mactab.h`
-- `ukengine/mapping/mactab.cpp`
-- `setup/controller/setup_controller.h`
-- `setup/controller/setup_controller.cpp`
-- `tests/instructions/README.md`
-- `commit.txt` (this change log / PR narrative)
+### Codecs (per-handler TU + static registration)
 
-Suggested verification
-----------------------
-- Configure and build the project (with GTK dev packages if macro UI tests are enabled).
-- Run `ctest --output-on-failure` (or project `make test` / equivalent).
-- Manually exercise macro dialog: browse, sort, search, return-to-full-list, add/edit/delete, import/export if applicable.
+- **Text:** `macro_handler_text.cpp` still delegates to `TextMacroFormat` for native `.txt`/`.macro`.
+- **JSON:** `macro_handler_json.cpp` uses **json-glib** (arrays of `{trigger, content}` or flat maps).
+- **Plist:** `macro_handler_plist.cpp` uses **libplist** for XML and binary plists (`shortcut`/`phrase`,
+  `replace`/`with` aliases).
+- **YAML:** `macro_handler_yaml.cpp` uses **yaml-cpp** for Espanso-shaped `matches:` sequences.
+- **CSV/TSV:** `macro_handler_csv.cpp` uses **libcsv** for parsing and `csv_write` for export
+  (all fields quoted; valid RFC-style output).
+
+### UI and ergonomics
+
+- **`macro_dialog_state.cpp` / header:** Persists macro file chooser last directory via config;
+  migrates invalid paths to `~/Documents`.
+- **`macro_export_filename.cpp` / header:** Normalizes export basenames vs selected filter extension.
+- **`macro_utils.cpp`:** Clearer naming for list-store ↔ `CMacroTable` mirroring (last-wins policy).
+
+### Engine / docs
+
+- **`text_macro_format.cpp`:** Comments and export/import documentation aligned with interchange
+  behavior (no semantic breakage intended).
+
+### Build & CI
+
+- **`setup/CMakeLists.txt`:** `pkg_check_modules` / `find_*` for **json-glib**, **libplist**,
+  **libcsv**, **yaml-cpp**; link `yaml-cpp::yaml-cpp` and other deps on `macro_interchange`.
+- **`.travis.yml`:** Installs `libjson-glib-dev`, `libplist-dev`, `libcsv-dev`, `libyaml-cpp-dev`
+  (plus existing GTK/ibus packages).
+
+### Developer experience
+
+- **`.clangd`:** Uses `CompilationDatabase: build` so clangd resolves GTK/plist/json-glib/yaml-cpp
+  includes when `build/compile_commands.json` exists.
+- **`.gitignore`:** Stop ignoring `.clangd` so the project can ship a minimal config.
+
+### Tests
+
+- **Existing `tests/macros/` tree** (already tracked) remains the canonical macro interchange coverage:
+  `macro_file_io_test` loads fixtures by extension (`*.txt`, `*.yaml`, `*.plist`, `*.json`, `*.csv`),
+  plus dialog-state and export-filename tests. No behavioral change required in those sources for
+  this commit; they validate the new libraries at link/runtime.
+
+*(A duplicate `tests/UI/macros/` layout with stale `src/setup/` paths was **not** added; use
+`tests/macros/` only.)*
+
+## Files touched (this commit)
+
+- `.gitignore`
+- `.travis.yml`
+- `.clangd` (new)
+- `include/setup/macro_dialog_state.h`
+- `include/setup/macro_export_filename.h`
+- `include/setup/macro_file_io.h`
+- `include/setup/macro_format_handler.h`
+- `include/setup/macro_format_handler_registry.h`
+- `include/setup/macro_handler_csv.h`
+- `include/setup/macro_handler_json.h`
+- `include/setup/macro_handler_plist.h`
+- `include/setup/macro_handler_text.h`
+- `include/setup/macro_handler_yaml.h`
+- `include/setup/macro_interchange_common.h`
+- `setup/CMakeLists.txt`
+- `setup/config/settings_store.cpp`
+- `setup/macro_dialog_state.cpp`
+- `setup/macro_export_filename.cpp`
+- `setup/macro_file_io.cpp`
+- `setup/macro_format_handler_registry.cpp`
+- `setup/macro_handler_csv.cpp`
+- `setup/macro_handler_json.cpp`
+- `setup/macro_handler_plist.cpp`
+- `setup/macro_handler_text.cpp`
+- `setup/macro_handler_yaml.cpp`
+- `setup/macro_interchange_common.cpp`
+- `setup/macro_utils.cpp`
+- `setup/main.cpp`
+- `setup/signal_handlers.cpp`
+- `setup/ui/setup_view.cpp`
+- `ukengine/mapping/text_macro_format.cpp`
+- `commit.txt` (this note; forced add — matches `*commit.txt` ignore pattern)
+
+## Verify locally
+
+```bash
+sudo apt-get install libgtk-3-dev libjson-glib-dev libplist-dev libcsv-dev libyaml-cpp-dev
+mkdir -p build && cd build && cmake .. && cmake --build . -j$(nproc) && ctest --output-on-failure
+```

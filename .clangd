@@ -1,0 +1,4 @@
+# Use CMake's compile_commands.json (see CMAKE_EXPORT_COMPILE_COMMANDS in CMakeLists.txt).
+# Paths are relative to this directory.
+CompileFlags:
+  CompilationDatabase: build

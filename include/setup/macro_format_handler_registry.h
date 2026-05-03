@@ -5,12 +5,16 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
-#include <string>
 
 #include <glib.h>
 
 #include <setup/macro_file_io.h>
 #include <setup/macro_format_handler.h>
+
+/**
+ * @file macro_format_handler_registry.h
+ * @brief Factory registry keyed by `MacroInterchangeForcedFormat` and file suffix (AUTO).
+ */
 
 /**
  * @brief Factory/registry for macro interchange handlers (polymorphic dispatch).
@@ -29,12 +33,25 @@ namespace MacroFormatHandlerRegistry {
 
 using HandlerFactory = std::function<std::unique_ptr<MacroFormatHandler>()>;
 
-/** Register or replace the factory for @a format and map @a suffixes_lower to it for AUTO. */
+/**
+ * @brief Register or replace the factory for @a format and map suffixes to it for AUTO.
+ * @param format Dispatcher id (not `MACRO_INTERCHANGE_FORMAT_AUTO`).
+ * @param factory Returns a new handler instance per call.
+ * @param suffixes_lower Lowercase extensions with leading dot, e.g. `.yaml`, `.yml`.
+ */
 void register_handler(MacroInterchangeForcedFormat format, HandlerFactory factory,
                       std::initializer_list<const char *> suffixes_lower);
 
+/**
+ * @brief Instantiates a handler for @a format, or null if none registered.
+ * @param format Explicit format (not usually `AUTO`).
+ */
 std::unique_ptr<MacroFormatHandler> create(MacroInterchangeForcedFormat format);
 
+/**
+ * @brief Picks a format from the path suffix; falls back in implementation when unknown.
+ * @param path_utf8 UTF-8 filesystem path (extension is inspected).
+ */
 MacroInterchangeForcedFormat detect_from_path(const gchar *path_utf8);
 
 } // namespace MacroFormatHandlerRegistry

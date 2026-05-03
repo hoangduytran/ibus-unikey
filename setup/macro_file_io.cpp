@@ -21,10 +21,18 @@
 
 #include <ukengine/mapping/mactab.h>
 
+/**
+ * @brief Loads macros with format inferred from @a filename (AUTO).
+ * @see macro_interchange_import_path
+ */
 gboolean macro_table_load_any_format(const gchar *filename, CMacroTable *table, GError **error) {
   return macro_interchange_import_path(filename, table, MACRO_INTERCHANGE_FORMAT_AUTO, nullptr, error);
 }
 
+/**
+ * @brief Dispatches import: reset table, resolve handler from @a forced or path suffix, parse file.
+ * @param stats Optional zeroed counters then filled by handler where implemented.
+ */
 gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table,
                                        MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
                                        GError **err) {
@@ -38,19 +46,23 @@ gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table
 
   table->resetContent();
 
-  MacroInterchangeForcedFormat fmt = forced;
-  if (fmt == MACRO_INTERCHANGE_FORMAT_AUTO)
-    fmt = MacroFormatHandlerRegistry::detect_from_path(filename);
+  MacroInterchangeForcedFormat resolved_format = forced;
+  if (resolved_format == MACRO_INTERCHANGE_FORMAT_AUTO)
+    resolved_format = MacroFormatHandlerRegistry::detect_from_path(filename);
 
-  std::unique_ptr<MacroFormatHandler> h = MacroFormatHandlerRegistry::create(fmt);
-  if (!h) {
+  std::unique_ptr<MacroFormatHandler> format_handler =
+      MacroFormatHandlerRegistry::create(resolved_format);
+  if (!format_handler) {
     macro_interchange::fail(err, "Unsupported macro interchange format");
     return FALSE;
   }
 
-  return h->import_from_path(filename, table, stats, err);
+  return format_handler->import_from_path(filename, table, stats, err);
 }
 
+/**
+ * @brief Dispatches export: resolve handler, write file; on success fills @a stats imported count.
+ */
 gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table,
                                        MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
                                        GError **err) {
@@ -62,24 +74,26 @@ gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table
   if (stats)
     memset(stats, 0, sizeof(*stats));
 
-  MacroInterchangeForcedFormat fmt = forced;
-  if (fmt == MACRO_INTERCHANGE_FORMAT_AUTO)
-    fmt = MacroFormatHandlerRegistry::detect_from_path(filename);
+  MacroInterchangeForcedFormat resolved_format = forced;
+  if (resolved_format == MACRO_INTERCHANGE_FORMAT_AUTO)
+    resolved_format = MacroFormatHandlerRegistry::detect_from_path(filename);
 
-  std::unique_ptr<MacroFormatHandler> h = MacroFormatHandlerRegistry::create(fmt);
-  if (!h) {
+  std::unique_ptr<MacroFormatHandler> format_handler =
+      MacroFormatHandlerRegistry::create(resolved_format);
+  if (!format_handler) {
     macro_interchange::fail(err, "Unsupported macro interchange export format");
     return FALSE;
   }
 
-  const gboolean ok = h->export_to_path(filename, table, stats, err);
-  if (ok && stats) {
+  const gboolean export_succeeded = format_handler->export_to_path(filename, table, stats, err);
+  if (export_succeeded && stats) {
     stats->imported = table->getCount();
     stats->attempted = stats->imported;
   }
-  return ok;
+  return export_succeeded;
 }
 
+/** @brief Attaches "all supported" plus per-format GtkFileFilter rows for import; sets default to all. */
 void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
   GtkFileFilter *all = gtk_file_filter_new();
   gtk_file_filter_set_name(all, _("All supported formats"));
@@ -128,6 +142,7 @@ void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
   gtk_file_chooser_set_filter(chooser, all);
 }
 
+/** @brief Reuses the same filter set as import (supported extensions match for save dialogs). */
 void macro_file_chooser_attach_export_filters(GtkFileChooser *chooser) {
   macro_file_chooser_attach_import_filters(chooser);
 }

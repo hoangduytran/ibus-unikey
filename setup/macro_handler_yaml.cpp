@@ -1,10 +1,16 @@
 // -*- mode:c++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
+/**
+ * @file macro_handler_yaml.cpp
+ * @brief Espanso-shaped YAML interchange (`matches:` / `trigger` / `replace`) via **yaml-cpp**.
+ */
+
 #include <setup/macro_handler_yaml.h>
 
 #include <memory>
-#include <sstream>
 #include <string>
+
+#include <yaml-cpp/yaml.h>
 
 #include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
@@ -13,62 +19,19 @@
 
 namespace {
 
-void trim_inline(std::string *s) {
-  while (!s->empty() && ((*s)[0] == ' ' || (*s)[0] == '\t'))
-    s->erase(s->begin());
-  while (!s->empty() && (s->back() == ' ' || s->back() == '\t' || s->back() == '\r'))
-    s->pop_back();
-}
-
-std::string yaml_extract_scalar(const std::string &after_colon) {
-  std::string s = after_colon;
-  trim_inline(&s);
-  if (s.empty())
-    return "";
-  if (s[0] == '"' || s[0] == '\'') {
-    char q = s[0];
-    std::string out;
-    for (size_t i = 1; i < s.size(); i++) {
-      if (s[i] == '\\' && i + 1 < s.size()) {
-        out.push_back(s[i + 1]);
-        i++;
-        continue;
-      }
-      if (s[i] == q)
-        break;
-      out.push_back(s[i]);
-    }
-    return out;
-  }
-  return s;
-}
-
-bool split_yaml_key_value(const std::string &line, const char *key, std::string *value_out) {
-  const std::string needle = std::string(key) + ":";
-  size_t pos = line.find(needle);
-  if (pos == std::string::npos)
+/**
+ * @brief Extracts a UTF-8 string from a YAML scalar node for macro trigger/phrase fields.
+ * @return False if the node is missing, null, or not representable as a string.
+ */
+bool scalar_to_utf8(const YAML::Node &node, std::string *out) {
+  if (!node.IsDefined() || node.IsNull())
     return false;
-  size_t start = pos + needle.size();
-  if (start > line.size())
+  try {
+    *out = node.as<std::string>();
+    return true;
+  } catch (const YAML::Exception &) {
     return false;
-  *value_out = yaml_extract_scalar(line.substr(start));
-  return true;
-}
-
-std::string yaml_escape_double(const std::string &s) {
-  std::string o;
-  o.push_back('"');
-  for (unsigned char c : s) {
-    if (c == '"' || c == '\\')
-      o.push_back('\\');
-    if (c == '\n') {
-      o += "\\n";
-      continue;
-    }
-    o.push_back((char)c);
   }
-  o.push_back('"');
-  return o;
 }
 
 } // namespace
@@ -77,93 +40,110 @@ MacroInterchangeForcedFormat YamlEspansoMacroHandler::forced_format() const {
   return MACRO_INTERCHANGE_FORMAT_YAML;
 }
 
+/**
+ * @brief Parses Espanso-style YAML: top-level `matches:` as a sequence of maps with `trigger` and `replace`.
+ */
 gboolean YamlEspansoMacroHandler::import_from_path(const gchar *path_utf8, CMacroTable *table,
-                                                  MacroInterchangeStatistics *stats, GError **err) {
+                                                   MacroInterchangeStatistics *stats, GError **err) {
   std::string raw;
   if (!macro_interchange::read_file_utf8(path_utf8, &raw, err))
     return FALSE;
 
-  std::istringstream iss(raw);
-  std::string line;
-  enum { SEEK_MATCHES, IN_MATCHES } phase = SEEK_MATCHES;
-  std::string pending_trigger;
+  YAML::Node root;
+  try {
+    root = YAML::Load(raw);
+  } catch (const YAML::Exception &parse_exception) {
+    macro_interchange::fail(err, parse_exception.what());
+    return FALSE;
+  }
 
-  while (std::getline(iss, line)) {
-    if (!line.empty() && line.back() == '\r')
-      line.pop_back();
+  const YAML::Node matches = root["matches"];
+  if (!matches.IsDefined() || !matches.IsSequence()) {
+    macro_interchange::fail(err, "YAML macro interchange expects a top-level matches: sequence");
+    return FALSE;
+  }
 
-    std::string t = line;
-    trim_inline(&t);
-
-    if (phase == SEEK_MATCHES) {
-      if (t.rfind("matches:", 0) == 0)
-        phase = IN_MATCHES;
+  for (const YAML::Node &entry : matches) {
+    if (!entry.IsMap()) {
+      if (stats)
+        stats->skipped_malformed++;
       continue;
     }
 
-    if (phase == IN_MATCHES) {
-      if (t.find("- trigger:") != std::string::npos || t.find("-trigger:") != std::string::npos) {
-        std::string v;
-        if (split_yaml_key_value(line, "trigger", &v)) {
-          pending_trigger = v;
-          if (stats)
-            stats->attempted++;
-        } else {
-          pending_trigger.clear();
-          if (stats)
-            stats->skipped_malformed++;
-        }
-        continue;
-      }
-      if (!pending_trigger.empty() && t.rfind("replace:", 0) == 0) {
-        std::string rep;
-        if (split_yaml_key_value(line, "replace", &rep)) {
-          const int r = table->addItem(pending_trigger.c_str(), rep.c_str(), CONV_CHARSET_UNIUTF8);
-          if (r >= 0) {
-            if (stats)
-              stats->imported++;
-          } else {
-            if (stats)
-              stats->skipped_malformed++;
-          }
-          pending_trigger.clear();
-        }
-        continue;
-      }
+    std::string trigger_utf8, phrase_utf8;
+    const bool got_trigger = scalar_to_utf8(entry["trigger"], &trigger_utf8);
+    const bool got_phrase = scalar_to_utf8(entry["replace"], &phrase_utf8);
+    if (!got_trigger || !got_phrase) {
+      if (stats)
+        stats->skipped_malformed++;
+      continue;
     }
-  }
 
-  if (phase != IN_MATCHES) {
-    macro_interchange::fail(err, "YAML macro interchange expects a top-level matches: block");
-    return FALSE;
+    const bool trigger_nonempty = !trigger_utf8.empty();
+    const bool phrase_nonempty = !phrase_utf8.empty();
+    if (!trigger_nonempty || !phrase_nonempty) {
+      if (stats)
+        stats->skipped_malformed++;
+      continue;
+    }
+
+    if (stats)
+      stats->attempted++;
+    const int add_item_result =
+        table->addItem(trigger_utf8.c_str(), phrase_utf8.c_str(), CONV_CHARSET_UNIUTF8);
+    if (add_item_result >= 0) {
+      if (stats)
+        stats->imported++;
+    } else if (stats) {
+      stats->skipped_malformed++;
+    }
   }
 
   return TRUE;
 }
 
+/**
+ * @brief Writes `matches:` as a block sequence of maps with double-quoted `trigger` / `replace` scalars.
+ */
 gboolean YamlEspansoMacroHandler::export_to_path(const gchar *path_utf8, CMacroTable *table,
                                                  MacroInterchangeStatistics *stats, GError **err) {
   (void)stats;
   const std::vector<int> order = macro_interchange::sorted_macro_row_indices(table);
-  const int n = table->getCount();
+  const int row_count = table->getCount();
 
-  std::ostringstream oss;
-  oss << "matches:\n";
-  for (int i = 0; i < n; i++) {
-    const int ix = order[(size_t)i];
-    std::string keyu, valu;
-    if (!macro_interchange::utf8_from_std_keytext(table->getKey(ix), &keyu) ||
-        !macro_interchange::utf8_from_std_keytext(table->getText(ix), &valu)) {
+  YAML::Emitter emitter;
+  emitter.SetIndent(2);
+  emitter << YAML::BeginMap;
+  emitter << YAML::Key << "matches";
+  emitter << YAML::Value << YAML::BeginSeq;
+
+  for (int row_index = 0; row_index < row_count; row_index++) {
+    const int sorted_row_index = order[(size_t)row_index];
+    std::string trigger_utf8, phrase_utf8;
+    if (!macro_interchange::utf8_from_std_keytext(table->getKey(sorted_row_index), &trigger_utf8) ||
+        !macro_interchange::utf8_from_std_keytext(table->getText(sorted_row_index), &phrase_utf8)) {
       macro_interchange::fail(err, "Could not encode macro row for YAML export");
       return FALSE;
     }
-    oss << "  - trigger: " << yaml_escape_double(keyu) << "\n";
-    oss << "    replace: " << yaml_escape_double(valu) << "\n";
-    oss << "\n";
+
+    emitter << YAML::BeginMap;
+    emitter << YAML::Key << "trigger";
+    emitter << YAML::Value << YAML::DoubleQuoted << trigger_utf8;
+    emitter << YAML::Key << "replace";
+    emitter << YAML::Value << YAML::DoubleQuoted << phrase_utf8;
+    emitter << YAML::EndMap;
   }
 
-  const std::string data = oss.str();
-  if (!g_file_set_contents(path_utf8, data.data(), (gssize)data.size(), err))
+  emitter << YAML::EndSeq;
+  emitter << YAML::EndMap;
+
+  if (!emitter.good()) {
+    macro_interchange::fail(err, "Could not serialize YAML macro document");
+    return FALSE;
+  }
+
+  const std::string serialized_utf8 = emitter.c_str();
+  if (!g_file_set_contents(path_utf8, serialized_utf8.data(), (gssize)serialized_utf8.size(), err))
     return FALSE;
   return TRUE;
 }

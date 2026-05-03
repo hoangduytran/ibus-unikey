@@ -2,7 +2,15 @@
 
 /**
  * @file text_macro_format.cpp
- * @brief UniKey TEXT macro import/export (MacroFormat / TextMacroFormat).
+ * @brief UniKey TEXT macro import/export (`TextMacroFormat` / `MacroFormat`).
+ *
+ * Parses and writes the human-readable macro file: optional UTF-8 BOM (handled on read),
+ * magic header line with `version=`, then `trigger:expansion` rows. ASCII trigger prefixes are
+ * case-folded for duplicate resolution so the **last** physical line for a folded key wins,
+ * matching `CMacroTable` lookup semantics documented alongside `mactab.cpp`.
+ *
+ * This codec touches **only** the text stream. Binary `.ukmcache` hydrate/persist is owned by
+ * `CacheManagement` via `CMacroTable::loadFromFile` / `writeToFile`, not by this class.
  */
 
 #include <algorithm>
@@ -24,6 +32,12 @@ namespace {
          ? (x + 1)                                                                                 \
          : (x))
 
+/**
+ * @brief Lexicographic compare on NUL-terminated `StdVnChar` keys with Vietnamese pair folding.
+ *
+ * Used only for deterministic sort order on export; must stay aligned with folding used when
+ * building the “last wins” line index during import (`mactabFoldKeyPrefix` vs `foldedLookupKeyBytes`).
+ */
 int compareStdVnKeys(const StdVnChar *a, const StdVnChar *b)
 {
     int i = 0;
@@ -40,6 +54,12 @@ int compareStdVnKeys(const StdVnChar *a, const StdVnChar *b)
     }
 }
 
+/**
+ * @brief Convert a NUL-terminated `StdVnChar` run to UTF-8 via `VnConvert`, growing `buf` as needed.
+ *
+ * @param[out] ok Set to `true` only when `VnConvert` returns success.
+ * @return `false` when conversion fails repeatedly or the buffer would exceed an internal cap.
+ */
 bool vnStdToUtf8Grow(const StdVnChar *src, std::vector<char> &buf, bool *ok)
 {
     *ok = false;
@@ -61,6 +81,12 @@ bool vnStdToUtf8Grow(const StdVnChar *src, std::vector<char> &buf, bool *ok)
     return false;
 }
 
+/**
+ * @brief ASCII-only lowercase fold of the trigger substring before the first `:` on a source line.
+ *
+ * Lines without `:` are not passed here. Vietnamese bytes outside ASCII are left unchanged so
+ * folding stays consistent with historical text-macro behavior for duplicate keys.
+ */
 std::string mactabFoldKeyPrefix(const char *line, size_t keyLen)
 {
     std::string s(line, keyLen);
@@ -72,6 +98,7 @@ std::string mactabFoldKeyPrefix(const char *line, size_t keyLen)
     return s;
 }
 
+/** @brief Open macro file for read using platform-appropriate text mode. */
 FILE *openMacroFileRead(const char *fname)
 {
 #if defined(WIN32)
@@ -81,6 +108,7 @@ FILE *openMacroFileRead(const char *fname)
 #endif
 }
 
+/** @brief Open macro file for write using platform-appropriate text mode. */
 FILE *openMacroFileWrite(const char *fname)
 {
 #if defined(WIN32)
@@ -90,6 +118,11 @@ FILE *openMacroFileWrite(const char *fname)
 #endif
 }
 
+/**
+ * @brief Read a single logical line: accepts arbitrarily long lines; strips `\r`; `\n` ends the line.
+ *
+ * @return `true` when a line terminator was seen or trailing payload existed before EOF.
+ */
 bool readLineUnbounded(FILE *f, std::string &out)
 {
     out.clear();
@@ -104,6 +137,7 @@ bool readLineUnbounded(FILE *f, std::string &out)
     return !out.empty();
 }
 
+/** @brief Append all remaining lines after the header into `lines`. */
 void readRemainingLines(FILE *f, std::vector<std::string> &lines)
 {
     std::string line;
@@ -111,6 +145,11 @@ void readRemainingLines(FILE *f, std::vector<std::string> &lines)
         lines.push_back(std::move(line));
 }
 
+/**
+ * @brief For each `key:...` line, record the last line index whose folded key matches.
+ *
+ * Implements **last-wins** when several file lines share the same folded ASCII trigger prefix.
+ */
 void buildLastWinsLineIndex(const std::vector<std::string> &allLines,
                             std::unordered_map<std::string, size_t> &lastLineForFoldedKey)
 {
@@ -125,6 +164,15 @@ void buildLastWinsLineIndex(const std::vector<std::string> &allLines,
     }
 }
 
+/**
+ * @brief Apply `allLines` to `table`, honoring the precomputed last-wins index.
+ *
+ * Lines **without** `:` are passed to `addItem` whole (legacy single-field rows). Lines with `:`
+ * are inserted only when their index is the recorded winner for their folded key, so earlier
+ * duplicates are skipped without touching the table.
+ *
+ * @return `true` if any `addItem` failed (caller may still inspect `table` for OOM vs parse errors).
+ */
 bool applyLoadedLinesToTable(CMacroTable *table, const std::vector<std::string> &allLines, int charset,
                              const std::unordered_map<std::string, size_t> &lastLineForFoldedKey)
 {
@@ -155,6 +203,15 @@ bool applyLoadedLinesToTable(CMacroTable *table, const std::vector<std::string> 
     return anyLineFailed;
 }
 
+/**
+ * @brief Read the first line for `version=` in the UniKey header, or establish legacy (VIQR) mode.
+ *
+ * Strips an optional UTF-8 BOM from the scan window. If no recognizable marker is found, sets
+ * `version` to 0 and rewinds the stream so the first line is re-read as body content.
+ *
+ * @param[out] version `kUtf8Version` when the UTF-8 header is present; `0` for legacy / absent header.
+ * @return `false` only when the first read fails unexpectedly (not EOF).
+ */
 bool readVersionHeader(FILE *f, int &version)
 {
     std::string line;
@@ -185,6 +242,12 @@ bool readVersionHeader(FILE *f, int &version)
     return true;
 }
 
+/**
+ * @brief Write one `key:text` row as UTF-8 bytes, trimming NUL padding from `VnConvert` output.
+ *
+ * @param addNl When `false`, omits the trailing newline (used for the final row on export).
+ * @return 0 on success, -1 on conversion or `fwrite` failure.
+ */
 int writeOneRowUtf8(FILE *f, const MacroEntry &row, bool addNl)
 {
     std::vector<char> keyUtf8;
@@ -219,6 +282,20 @@ MacroFormatId TextMacroFormat::id() const
     return MacroFormatId::TextUniKey;
 }
 
+/**
+ * @brief Load macro rows from disk into `table` using the text codec only.
+ *
+ * Progression: open file → read header to choose UTF-8 vs VIQR charset → read remaining lines →
+ * build last-wins index for folded keys → apply winning lines to `table`. Sets `MACTAB_ERR_INCOMPLETE`
+ * when any row fails to insert unless the failure was OOM.
+ *
+ * @param path Filesystem path to the macro text file.
+ * @param table Destination table; caller controls whether rows are cleared beforehand.
+ * @param[out] outSourceVersion When non-null, receives header `version` (`0` = legacy / absent).
+ * @return `1` on full success, `0` on I/O, header, or partial line failure (`table` holds detail).
+ *
+ * @note Import uses only public `CMacroTable` APIs (`addItem`); does not touch `.ukmcache`.
+ */
 int TextMacroFormat::importFromPath(const char *path, CMacroTable &table, int *outSourceVersion)
 {
     FILE *f = openMacroFileRead(path);
@@ -260,6 +337,19 @@ int TextMacroFormat::importFromPath(const char *path, CMacroTable &table, int *o
     return 1;
 }
 
+/**
+ * @brief Serialize `table` to a UTF-8 macro text file with the current header and sorted keys.
+ *
+ * Rows are written in ascending trigger order (`compareStdVnKeys`). Uses `table.m_entries`
+ * directly because `TextMacroFormat` is a `friend` of `CMacroTable`.
+ *
+ * @param path Destination path (overwritten on success).
+ * @param table Source macro table.
+ * @return `1` on success, `0` on open/write failure (`table` carries the last error message).
+ *
+ * @note On Windows the header is written with a UTF-8 BOM prefix before the magic line for legacy
+ *       consumers; non-Windows builds omit the BOM on the header line per existing convention.
+ */
 int TextMacroFormat::exportToPath(const char *path, CMacroTable &table)
 {
     FILE *f = openMacroFileWrite(path);

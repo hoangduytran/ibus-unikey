@@ -29,7 +29,6 @@ readme_viewer.html
 serve_readme.py
 server.js
 .vscode/
-.clangd
 Testing/
 
 po/Makevars.template

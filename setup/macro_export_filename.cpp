@@ -1,35 +1,50 @@
 // -*- mode:c++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
+/**
+ * @file macro_export_filename.cpp
+ * @brief Completes export paths with a filter-selected extension and detects basename conflicts.
+ */
+
 #include <setup/macro_export_filename.h>
 
 #include <cstring>
 
 namespace {
 
-bool hidden_dotfile_extensionless(const gchar *base) {
-  return base && base[0] == '.' && strchr(base + 1, '.') == nullptr;
+/**
+ * @brief True for dotfiles like `.gitignore` that have no real "extension" segment.
+ */
+bool hidden_dotfile_extensionless(const gchar *basename_utf8) {
+  return basename_utf8 && basename_utf8[0] == '.' && strchr(basename_utf8 + 1, '.') == nullptr;
 }
 
-gchar *take_extension(const gchar *base) {
-  if (!base || !base[0])
+/**
+ * @brief Returns a newly allocated suffix starting at the last dot (e.g. `.yaml`).
+ * @return Extension string or nullptr when none or extensionless dotfile.
+ */
+gchar *take_extension(const gchar *basename_utf8) {
+  if (!basename_utf8 || !basename_utf8[0])
     return nullptr;
-  if (hidden_dotfile_extensionless(base))
+  if (hidden_dotfile_extensionless(basename_utf8))
     return nullptr;
-  const char *dot = strrchr(base, '.');
-  if (!dot || dot == base)
+  const char *last_dot = strrchr(basename_utf8, '.');
+  if (!last_dot || last_dot == basename_utf8)
     return nullptr;
-  return g_strdup(dot);
+  return g_strdup(last_dot);
 }
 
-gboolean extensions_match(const gchar *base, const gchar *preferred_ext) {
-  if (!preferred_ext || !preferred_ext[0])
+/**
+ * @brief Case-insensitive comparison of basename extension to @a preferred_ext including dot.
+ */
+gboolean extensions_match(const gchar *basename_utf8, const gchar *preferred_extension_utf8) {
+  if (!preferred_extension_utf8 || !preferred_extension_utf8[0])
     return FALSE;
-  gchar *have = take_extension(base);
-  if (!have)
+  gchar *current_extension = take_extension(basename_utf8);
+  if (!current_extension)
     return FALSE;
-  gboolean ok = g_ascii_strcasecmp(have, preferred_ext) == 0;
-  g_free(have);
-  return ok;
+  const gboolean extensions_equal = g_ascii_strcasecmp(current_extension, preferred_extension_utf8) == 0;
+  g_free(current_extension);
+  return extensions_equal;
 }
 
 } // namespace
@@ -38,12 +53,12 @@ gboolean macro_export_filename_has_extension_conflict(const gchar *basename_utf8
                                                       const gchar *preferred_extension_utf8) {
   if (!preferred_extension_utf8 || !preferred_extension_utf8[0])
     return FALSE;
-  gchar *have = take_extension(basename_utf8);
-  if (!have)
+  gchar *current_extension = take_extension(basename_utf8);
+  if (!current_extension)
     return FALSE;
-  gboolean conflict = g_ascii_strcasecmp(have, preferred_extension_utf8) != 0;
-  g_free(have);
-  return conflict;
+  const gboolean has_mismatch = g_ascii_strcasecmp(current_extension, preferred_extension_utf8) != 0;
+  g_free(current_extension);
+  return has_mismatch;
 }
 
 gchar *macro_export_filename_complete(const gchar *path_utf8, const gchar *preferred_extension_utf8) {
@@ -52,27 +67,23 @@ gchar *macro_export_filename_complete(const gchar *path_utf8, const gchar *prefe
   if (!preferred_extension_utf8 || !preferred_extension_utf8[0])
     return g_strdup(path_utf8);
 
-  gchar *dir = g_path_get_dirname(path_utf8);
-  gchar *base = g_path_get_basename(path_utf8);
+  gchar *directory_utf8 = g_path_get_dirname(path_utf8);
+  gchar *basename_utf8 = g_path_get_basename(path_utf8);
 
-  gchar *new_base = nullptr;
-  if (extensions_match(base, preferred_extension_utf8))
-    new_base = g_strdup(base);
-  else if (macro_export_filename_has_extension_conflict(base, preferred_extension_utf8))
-    new_base = g_strconcat(base, preferred_extension_utf8, nullptr);
-  else
-    new_base = g_strconcat(base, preferred_extension_utf8, nullptr);
+  gchar *completed_basename = extensions_match(basename_utf8, preferred_extension_utf8)
+                                  ? g_strdup(basename_utf8)
+                                  : g_strconcat(basename_utf8, preferred_extension_utf8, nullptr);
 
-  const gboolean bare =
+  const gboolean path_is_basename_only =
       (strchr(path_utf8, '/') == nullptr && strchr(path_utf8, '\\') == nullptr);
-  gchar *out = nullptr;
-  if (bare)
-    out = new_base;
+  gchar *completed_path = nullptr;
+  if (path_is_basename_only)
+    completed_path = completed_basename;
   else {
-    out = g_build_filename(dir, new_base, nullptr);
-    g_free(new_base);
+    completed_path = g_build_filename(directory_utf8, completed_basename, nullptr);
+    g_free(completed_basename);
   }
-  g_free(dir);
-  g_free(base);
-  return out;
+  g_free(directory_utf8);
+  g_free(basename_utf8);
+  return completed_path;
 }

@@ -1,3 +1,8 @@
+/**
+ * @file signal_handlers.cpp
+ * @brief GTK signal stubs that forward to `SetupController` via `global_setup_controller()`.
+ */
+
 #include "signal_handlers.h"
 #include "controller/setup_controller.h"
 
