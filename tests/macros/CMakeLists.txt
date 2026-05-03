@@ -46,7 +46,6 @@ add_test(
 
 add_executable(test-macro-file-io
     macro_file_io_test.cpp
-    ../../../setup/macro_file_io.cpp
 )
 
 target_include_directories(test-macro-file-io PRIVATE
@@ -57,6 +56,7 @@ target_include_directories(test-macro-file-io PRIVATE
 )
 
 target_link_libraries(test-macro-file-io
+    macro_interchange
     ukengine
     ${GTK3_TEST_LIBRARIES}
 )
