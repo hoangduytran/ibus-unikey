@@ -318,6 +318,10 @@ static gboolean load_plist_xml_triggers(const gchar *path, CMacroTable *table, M
     return FALSE;
   }
 
+  if (raw.size() >= 3 && (unsigned char)raw[0] == 0xEF && (unsigned char)raw[1] == 0xBB &&
+      (unsigned char)raw[2] == 0xBF)
+    raw.erase(0, 3);
+
   size_t scan_pos = 0;
   std::string dict;
   while (plist_extract_next_dict(raw, &scan_pos, &dict)) {
@@ -701,10 +705,13 @@ static gboolean export_plist_xml(const gchar *path, CMacroTable *table, GError *
   });
 
   std::ostringstream oss;
+  // Match Apple Keyboard text-replacement export layout (see tests/UI/macros/unikey_macro.plist):
+  // <array> then per row <dict> with phrase before shortcut, 4-space dict indent, 8-space inner lines.
   oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
   oss << "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
          "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
-  oss << "<plist version=\"1.0\">\n<array>\n";
+  oss << "<plist version=\"1.0\">\n";
+  oss << "<array>\n";
 
   for (int i = 0; i < n; i++) {
     const int ix = order[(size_t)i];
@@ -714,15 +721,16 @@ static gboolean export_plist_xml(const gchar *path, CMacroTable *table, GError *
       interchange_fail(err, "Could not encode macro row for plist export");
       return FALSE;
     }
-    oss << "<dict>\n";
-    oss << "  <key>phrase</key>\n";
-    oss << "  <string>" << xml_escape_attr(valu) << "</string>\n";
-    oss << "  <key>shortcut</key>\n";
-    oss << "  <string>" << xml_escape_attr(keyu) << "</string>\n";
-    oss << "</dict>\n";
+    oss << "    <dict>\n";
+    oss << "        <key>phrase</key>\n";
+    oss << "        <string>" << xml_escape_attr(valu) << "</string>\n";
+    oss << "        <key>shortcut</key>\n";
+    oss << "        <string>" << xml_escape_attr(keyu) << "</string>\n";
+    oss << "    </dict>\n";
   }
 
-  oss << "</array>\n</plist>\n";
+  oss << "</array>\n";
+  oss << "</plist>\n";
   const std::string data = oss.str();
   if (!g_file_set_contents(path, data.data(), (gssize)data.size(), err))
     return FALSE;
