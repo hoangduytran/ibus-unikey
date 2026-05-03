@@ -436,7 +436,7 @@ Responsibilities are split to match the planning doc (`project_planning/ukengine
 | **`MacroFormat`** (`macro_format.h`) | Abstract import/export by path inside **ukengine**; **`TextMacroFormat`** implements UniKey TEXT. The **setup** app adds separate **`MacroFormatHandler`** codecs for JSON/YAML/plist/CSV/TSV (§7.8). |
 | **`TextMacroFormat`** | UniKey’s legacy TEXT codec: optional UTF-8 BOM / header, `key:text` rows, **last-wins** when the same folded ASCII key prefix appears on multiple lines, unbounded line reads, UTF-8 vs VIQR based on header `version=`. **Export writes only text** (no binary, no digest lines). |
 | **`CacheManagement`** | **Precomputed binary cache** for the **canonical** macro file path: **sidecar file** `"{macroTextPath}.ukmcache"` in the same directory, **FNV-1a 64** over the **raw bytes** of the TEXT file for invalidation, **atomic** write via a `*.tmp` in that directory then rename. **Import from an arbitrary user path** should still parse TEXT (or another `MacroFormat`); trusting a sidecar for non-canonical paths is a future, explicit feature. |
-| **`CMacroTable`** | In-memory `MacroEntry` rows (heap-backed `std::vector<StdVnChar>` key and text), **`std::unordered_map`** on **folded** key bytes (last insert wins for the same fold). |
+| **`CMacroTable`** | In-memory `MacroEntry` rows (heap-backed `std::vector<StdVnChar>` key and text), **`std::unordered_map<std::string, size_t>`** (`m_lookup`) on **folded** key bytes — **average O(1)** lookup (**last insert wins** for the same fold). This **replaces** the older UniKey pattern of keeping triggers in sorted order and using **binary search** (`bsearch`) on each lookup. |
 
 **Canonical load/save orchestration** (see `CMacroTable::loadFromFile` / `writeToFile` in `mactab.cpp`):
 
@@ -461,11 +461,11 @@ Macro lookup is not a raw on-screen byte comparison.
 
 `UkEngine::macroMatch()`:
 
-1. scans backward in the current composition buffer (bounded by **`MACRO_MATCH_MAX_KEY_UNITS`** in `keycons.h` for the typing path)
+1. scans backward in the current composition buffer (only positions already in `UkEngine`’s working buffer; capacity **`MAX_UK_ENGINE`** word slots in `include/ukengine/engine/ukengine.h`)
 2. builds a standardized Vietnamese key sequence (`StdVnChar`)
-3. calls **`CMacroTable::lookup()`**, which consults an **`std::unordered_map`** keyed by **folded** key bytes (`MacroEntry` storage + fold rules aligned with the TEXT loader’s semantics).
+3. calls **`CMacroTable::lookup()`**, which maps the same **folded** key bytes as `foldedLookupKeyBytes()` in `mactab.cpp` into an index via **`m_lookup`** (`std::unordered_map`), then returns that row’s replacement text. **Runtime lookup is hash-based**, not a binary search over a sorted table.
 
-That keeps expansion coherent across output charsets.
+**Historical note:** Classic UniKey stored macro triggers in **sort order** and resolved expansion with **binary search**. This tree uses a **hash map** keyed by serialized folded `StdVnChar` bytes so lookup does not depend on maintaining a sorted in-memory array. **On-disk TEXT export** still emits rows **sorted by key** (`TextMacroFormat::exportToPath`) for stable, human-readable files; that sort is for the file format only, not for engine lookup.
 
 ### 7.4 Case behavior
 
@@ -481,8 +481,8 @@ After macro text is emitted, the engine appends the triggering separator charact
 
 ### 7.6 Runtime policy vs storage
 
-- **Typing path:** `MACRO_MATCH_MAX_KEY_UNITS` (4096) caps how long a trigger the engine will match while typing; this is **not** a cap on what can be **stored** in the table.
-- **Per-entry key and replacement text** in `CMacroTable` are **not** limited to the old 16/1024 compile-time macro buffer sizes; memory and conversion failures still apply.
+- **`CMacroTable`:** row count, key length, and replacement text are **heap-backed**; there is **no** remaining UniKey-era hard cap such as 1024 rows or 16-byte keys. Failures are the usual ones (out of memory, conversion errors).
+- **Typing path:** `UkEngine::macroMatch()` only considers triggers that fit in the **live composition buffer** (`m_buffer`, size **`MAX_UK_ENGINE`**). There is **no** additional macro-specific length `#define`; stored keys may be longer, but they cannot match until a suffix of that length is actually present in the buffer.
 - The setup UI may still impose its own GTK buffer or validation limits independent of the engine.
 
 ### 7.7 Macro editor capabilities that exist today
@@ -536,7 +536,7 @@ The current code does **not** provide:
 
 There is one nuance here:
 
-- **TEXT export** writes rows in a **stable sorted key order**; **lookup** does not require sorting (hash map)
+- **TEXT export** writes rows in a **stable sorted key order** (file-format convention); **in-memory lookup** uses a **hash map**, not sorting + `bsearch`
 - the UI layer does not expose a real sorting feature for the user
 - **structured import/export** (JSON, YAML, plist, CSV, TSV) **is** available from the setup app (§7.8); remaining gaps are mostly **UX polish** and **formal documented schemas** for third-party tools
 
@@ -579,8 +579,8 @@ The current repository has the following verified limitations or gaps.
 
 ### 9.2 Macro limits and UX gaps
 
-- Macro row count is **not** capped at 1024 in `CMacroTable` (practical limit is memory).
-- Macro key/value storage is heap-backed; the typing-path probe still uses **`MACRO_MATCH_MAX_KEY_UNITS`**.
+- Macro tables are **not** capped at legacy fixed sizes; practical limits are **memory** and file size when loading/saving.
+- While typing, macro expansion is still limited by the engine composition buffer width (**`MAX_UK_ENGINE`**), not by a separate macro-only constant.
 - Macro editing is table-based only.
 - There is no dedicated searchable or filterable macro browser.
 - There is no real user-facing sorting feature in the macro dialog.
@@ -738,13 +738,14 @@ Luồng là:
 
 ### 12.5 Giới hạn macro hiện tại
 
-- Số macro và độ dài key/value trong bảng không còn bị giới hạn cứng kiểu cũ (1024 macro / 16 ký tự key); giới hạn thực tế chủ yếu là bộ nhớ; đường gõ vẫn có giới hạn `MACRO_MATCH_MAX_KEY_UNITS` khi thử khớp macro.
-- File TEXT có sidecar cache nhị phân tùy chọn `.ukmcache` (xem mục 7).
+- Không còn giới hạn cứng kiểu cũ (ví dụ 1024 macro / độ dài key cố định); bảng macro lưu trên heap; giới hạn thực tế chủ yếu là **bộ nhớ** và kích thước buffer soạn thảo khi đang gõ (**`MAX_UK_ENGINE`** trong `ukengine.h`).
+- File TEXT chuẩn có sidecar cache nhị phân tùy chọn `.ukmcache` (mục 7).
+- UI import/export: **UniKey TEXT** (`.txt` / `.macro`) và **JSON, YAML, plist, CSV, TSV** (mục 7.8).
 
-UI macro hiện có import và export **file text kiểu UniKey** và thêm **JSON, YAML, plist, CSV, TSV** (hộp thoại chọn file theo đuôi mở rộng; xem mục 7.8), nhưng chưa có:
+UI macro vẫn thiếu:
 
 - ô search riêng
-- sort thực sự cho người dùng
+- sort cột đầy đủ cho người dùng
 - tài liệu schema chính thức cho từng định dạng trao đổi
 
 ### 12.6 Kết luận ngắn

@@ -54,16 +54,16 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
         return 0;
 
     const StdVnChar *pMacText = NULL;
-    m_macroKeyScratch.resize((size_t)MACRO_MATCH_MAX_KEY_UNITS + 2u);
+    m_macroKeyScratch.resize((size_t)MAX_UK_ENGINE + 2u);
     StdVnChar *const key = m_macroKeyScratch.data();
     StdVnChar *pKeyStart;
 
     int i, j;
 
     i = m_current;
-    while (i >= 0 && (m_current - i + 1) < MACRO_MATCH_MAX_KEY_UNITS)
+    while (i >= 0 && (m_current - i + 1) <= MAX_UK_ENGINE)
     {
-        while (i >= 0 && m_buffer[i].form != vnw_empty && (m_current - i + 1) < MACRO_MATCH_MAX_KEY_UNITS)
+        while (i >= 0 && m_buffer[i].form != vnw_empty && (m_current - i + 1) <= MAX_UK_ENGINE)
             i--;
         if (i >= 0 && m_buffer[i].form != vnw_empty)
             return 0;

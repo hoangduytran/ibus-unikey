@@ -69,7 +69,7 @@ UkEngine::UkEngine()
     m_reverted = false;
     m_toEscape = false;
     m_keyRestored = false;
-    m_macroKeyScratch.reserve((size_t)MACRO_MATCH_MAX_KEY_UNITS + 4u);
+    m_macroKeyScratch.reserve((size_t)MAX_UK_ENGINE + 4u);
 }
 
 //----------------------------------------------------
