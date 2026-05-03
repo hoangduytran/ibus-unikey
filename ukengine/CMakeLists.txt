@@ -1,16 +1,44 @@
-set (SOURCES byteio.cpp
-    charset.cpp
-    convert.cpp
-    data.cpp
-    error.cpp
-    inputproc.cpp
-    mactab.cpp
-    pattern.cpp
-    ukengine.cpp
-    usrkeymap.cpp
-    unikey.cpp
+set(SOURCES
+    core/byteio.cpp
+    core/inputproc.cpp
+    mapping/charset.cpp
+    mapping/macro_cache.cpp
+    mapping/mactab.cpp
+    mapping/text_macro_format.cpp
+    tables/data.cpp
+    tables/singlebyte/tcvn3.cpp
+    tables/singlebyte/vps.cpp
+    tables/singlebyte/viscii.cpp
+    tables/singlebyte/bkhcm1.cpp
+    tables/singlebyte/vietware_f.cpp
+    tables/singlebyte/isc.cpp
+    tables/doublebytes/vni_win.cpp
+    tables/doublebytes/bkhcm2.cpp
+    tables/doublebytes/vietware_x.cpp
+    tables/doublebytes/vni_mac.cpp
+    tables/error.cpp
+    tables/usrkeymap.cpp
+    patterns/pattern.cpp
+    roof/convert.cpp
+    engine/ukengine.cpp
+    engine/unikey.cpp
 )
 
 add_library(ukengine STATIC ${SOURCES})
-set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding")
+
+target_include_directories(ukengine
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:include>
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/mapping
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/tables
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/patterns
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/roof
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/engine
+      ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding -Wno-narrowing")
 

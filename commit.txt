@@ -1,0 +1,42 @@
+Macro UI: refactor dialog/search/save paths; factor CMacroTable insert pipeline; GTK test README
+
+Summary
+-------
+This iteration tightens macro handling in both the GTK setup controller and the engine macro table, and improves hand-testing docs for CMake/GTK setups.
+
+Reasons
+-------
+- **Setup (GTK):** The macro dialog had grown dense (search vs full list, import/export, cell edits, standalone editor). Breaking out named helpers improves readability, aligns list rendering with a single canonical `m_defaultEntries` source, and avoids repeated brittle logic when syncing the tree model.
+- **Search:** Folding trigger and expansion text once per edit (`key_folded` / `value_folded`) avoids repeated UTF-8 casefold work on every keystroke during filter passes.
+- **Engine (`CMacroTable`):** Sharing decode (`decodeMacroKeyAndText`) and keyed upsert (`upsertMacroByFoldKey`) between `addItem` and clearer documentation matches the documented “folded-key map, last wins” behavior and simplifies future callers (hydration/import) that already work in vector form.
+- **Tests / docs:** `tests/instructions/README.md` spelled out GTK only briefly; distro-specific package names and quick “is GTK installed?” checks reduce friction when GTK macro targets are optional.
+
+What changed (by area)
+----------------------
+**`include/ukengine/mapping/mactab.h` / `ukengine/mapping/mactab.cpp`**
+- Declared and implemented `decodeMacroKeyAndText` (charset → `StdVnChar` vectors) and `upsertMacroByFoldKey` (fold string → append or overwrite row, last-wins semantics).
+- `addItem` now delegates to those helpers; `loadFromFile` / `writeToFile` flow documented in file-level comments alongside `TextMacroFormat` and `CacheManagement`.
+- Extended Doxygen-style comments on lookup, helpers, and internal helpers (`foldedLookupKeyBytes`, `vnConvertGrow`); reformatted implementations for clarity (consistent brace/layout style in touched regions).
+
+**`setup/controller/setup_controller.h` / `setup/controller/setup_controller.cpp`**
+- Extended `MacroUiRow` with precomputed UTF-8 casefold caches for substring search (`key_folded`, `value_folded`) plus `refreshMacroUiRowSearchFoldCaches`.
+- New helpers include: combo activation matching stored IDs (`activateComboBoxRowIfStoredIdMatches`), full-list vs search projection rendering (`renderFullCanonicalMacroListInto`, `renderSearchProjectionInto`), macro dialog save pipeline slices (`prefillMacroEditorFromCanonical`, `commitMacroEditorSavePayload`, `applyLoadedMacroTableToDialogUi`, `repopulateMacroStoreFromDefaultEntriesForSave`, `commitMacroEditDialogSave`, `commitMacroExportToPath`, `commitMacroImportMergeFromPath`).
+- Class-level docs for `SetupController` and forward-declared `CMacroTable` linkage for clearer signatures.
+
+**`tests/instructions/README.md`**
+- Expand GTK 3 prerequisite guidance: Debian/Ubuntu `apt`, Fedora `dnf`, Arch `pacman`, and verification commands (`dpkg`, `pkg-config`, `rpm`, `pacman -Qi`).
+
+Files changed
+-------------
+- `include/ukengine/mapping/mactab.h`
+- `ukengine/mapping/mactab.cpp`
+- `setup/controller/setup_controller.h`
+- `setup/controller/setup_controller.cpp`
+- `tests/instructions/README.md`
+- `commit.txt` (this change log / PR narrative)
+
+Suggested verification
+----------------------
+- Configure and build the project (with GTK dev packages if macro UI tests are enabled).
+- Run `ctest --output-on-failure` (or project `make test` / equivalent).
+- Manually exercise macro dialog: browse, sort, search, return-to-full-list, add/edit/delete, import/export if applicable.

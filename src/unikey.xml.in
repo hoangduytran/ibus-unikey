@@ -11,5 +11,6 @@
   <textdomain>ibus-unikey</textdomain>
 
   <engines exec="${LIBEXECDIR}/ibus-engine-unikey --xml" />
+  <setup>${LIBEXECDIR}/ibus-setup-unikey</setup>
 
 </component>
