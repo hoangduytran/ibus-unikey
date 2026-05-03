@@ -1,6 +1,6 @@
 # ibus-unikey Technical Note
 
-This note is intended to match the current source tree in this repository as of **May 2026** (macro I/O, cache, and refactored **engine / charset / setup** module directories).
+This note is intended to match the current source tree in this repository as of **May 2026** (macro I/O, binary cache, **setup interchange codecs** JSON/YAML/plist/CSV/TSV, and refactored **engine / charset / setup** module directories).
 
 If this note, older screenshots, or user-facing help text disagree with the implementation, the code wins. In a few places the shipped help text is stale; those mismatches are called out explicitly below.
 
@@ -8,7 +8,7 @@ If this note, older screenshots, or user-facing help text disagree with the impl
 
 - [English](#table-of-contents)
 - [Tiếng Việt](#tom-tat-tieng-viet)
-
+f
 ## Table of Contents
 
 - [1. Scope](#1-scope)
@@ -433,7 +433,7 @@ Responsibilities are split to match the planning doc (`project_planning/ukengine
 
 | Component | Role |
 |-----------|------|
-| **`MacroFormat`** (`macro_format.h`) | Abstract import/export by path; future codecs (JSON, plist, …) can subclass without changing `CMacroTable` storage. |
+| **`MacroFormat`** (`macro_format.h`) | Abstract import/export by path inside **ukengine**; **`TextMacroFormat`** implements UniKey TEXT. The **setup** app adds separate **`MacroFormatHandler`** codecs for JSON/YAML/plist/CSV/TSV (§7.8). |
 | **`TextMacroFormat`** | UniKey’s legacy TEXT codec: optional UTF-8 BOM / header, `key:text` rows, **last-wins** when the same folded ASCII key prefix appears on multiple lines, unbounded line reads, UTF-8 vs VIQR based on header `version=`. **Export writes only text** (no binary, no digest lines). |
 | **`CacheManagement`** | **Precomputed binary cache** for the **canonical** macro file path: **sidecar file** `"{macroTextPath}.ukmcache"` in the same directory, **FNV-1a 64** over the **raw bytes** of the TEXT file for invalidation, **atomic** write via a `*.tmp` in that directory then rename. **Import from an arbitrary user path** should still parse TEXT (or another `MacroFormat`); trusting a sidecar for non-canonical paths is a future, explicit feature. |
 | **`CMacroTable`** | In-memory `MacroEntry` rows (heap-backed `std::vector<StdVnChar>` key and text), **`std::unordered_map`** on **folded** key bytes (last insert wins for the same fold). |
@@ -491,25 +491,54 @@ The current GTK macro dialog supports:
 
 - add/edit/delete
 - clear all
-- import from file
-- export to file
+- import from file and export to file, including **UniKey TEXT** (`.txt` / `.macro`) and **JSON, YAML, plist, CSV, TSV** via the interchange layer (§7.8; format from extension when AUTO)
 - duplicate macro keys: **last wins** (case-folded) when loading/saving and when merging the engine table into the list store; the cell editor no longer blocks duplicate keys
 - incremental tree-view search behavior on column 0 because `search_column` is set
 
-### 7.8 Macro editor capabilities that do not exist as a finished user-facing feature
+### 7.8 Setup macro interchange: extra file formats and handler wiring
+
+The **engine’s canonical macro file** on disk (path from `UNIKEY_MACRO_FILE` in `src/config/unikey_config.h`) is still loaded and saved through **`TextMacroFormat`** plus optional **`.ukmcache`** as described in §7.1. That path is what the running IBus engine reloads from GSettings.
+
+The **GTK setup app** additionally supports **importing and exporting** the same logical `CMacroTable` through **pluggable interchange codecs** that live only in `setup/`. Those codecs are **not** used for automatic engine reload of the default macro path unless the user imports into the editor and saves native text (or the flow explicitly writes the canonical file).
+
+**Dispatch API**
+
+- `macro_interchange_import_path()` / `macro_interchange_export_path()` in `setup/macro_file_io.cpp` clear or serialize the table, resolve a `MacroInterchangeForcedFormat`, construct a `MacroFormatHandler`, and call `import_from_path` / `export_to_path`.
+- With `MACRO_INTERCHANGE_FORMAT_AUTO`, the format is chosen by **`MacroFormatHandlerRegistry::detect_from_path()`** (`setup/macro_format_handler_registry.cpp`): lowercase file suffix after the final dot; **empty or unknown suffix ⇒ UniKey TEXT** (`MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY`).
+
+**How handlers register**
+
+- Each codec is implemented by a subclass of `MacroFormatHandler` (`include/setup/macro_format_handler.h`) in its own `setup/macro_handler_*.cpp`.
+- A **static registrar** struct in that file constructs at startup and calls **`MacroFormatHandlerRegistry::register_handler(format, factory, { ".ext", … })`**, binding the enum to a factory lambda and registering **AUTO** suffix hints (include the leading dot, lowercase).
+- The registry keeps a map **format → factory** and **suffix → format** under a mutex. **Last registration wins** for a given format id; duplicate suffix registration across handlers should be avoided.
+- `macro_interchange` is built as a **static** library (`setup/CMakeLists.txt`). The setup executable must link it with **`-Wl,--whole-archive` / `-Wl,--no-whole-archive` on GNU ld** or **`-force_load` on macOS** so **every object file is linked** and all static initializers run before `main` (otherwise a handler can be “missing” at runtime).
+
+**Formats and extensions (current)**
+
+| `MacroInterchangeForcedFormat` | AUTO suffixes (typical) | Source file | Dependencies (pkg-config / CMake) |
+|--------------------------------|-------------------------|-------------|-----------------------------------|
+| `MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY` | `.txt`, `.macro` | `setup/macro_handler_text.cpp` | Same TEXT semantics as §7.2 (wrapper around ukengine `MacroFormat` / path I/O) |
+| `MACRO_INTERCHANGE_FORMAT_YAML` | `.yaml`, `.yml` | `setup/macro_handler_yaml.cpp` | yaml-cpp; Espanso-style `matches:` sequence |
+| `MACRO_INTERCHANGE_FORMAT_JSON` | `.json` | `setup/macro_handler_json.cpp` | json-glib |
+| `MACRO_INTERCHANGE_FORMAT_PLIST` | `.plist` | `setup/macro_handler_plist.cpp` | libplist |
+| `MACRO_INTERCHANGE_FORMAT_CSV` | `.csv` | `setup/macro_handler_csv.cpp` | libcsv; comma-separated, quoted fields |
+| `MACRO_INTERCHANGE_FORMAT_TSV` | `.tsv` | `setup/macro_handler_csv.cpp` | tab-delimited variant (`DelimitedTextMacroHandler`) |
+
+**UI:** GTK file chooser filters listing these patterns are attached by `macro_file_chooser_attach_import_filters` / `macro_file_chooser_attach_export_filters` in `setup/macro_file_io.cpp`. Import/export from the macro dialog is wired through **`setup/controller/setup_controller_components/setup_controller_macro_io.cpp`** (temporary `CMacroTable`, AUTO dispatch, then merge or save).
+
+### 7.9 Macro editor capabilities that do not exist as a finished user-facing feature
 
 The current code does **not** provide:
 
 - a dedicated search box
 - filter or search by replacement value
 - explicit sortable columns wired to a sort model
-- structured interchange formats such as JSON or plist
-- adapters for importing or exporting macros from other packages’ formats
 
 There is one nuance here:
 
 - **TEXT export** writes rows in a **stable sorted key order**; **lookup** does not require sorting (hash map)
 - the UI layer does not expose a real sorting feature for the user
+- **structured import/export** (JSON, YAML, plist, CSV, TSV) **is** available from the setup app (§7.8); remaining gaps are mostly **UX polish** and **formal documented schemas** for third-party tools
 
 Those are different things and should not be conflated.
 
@@ -556,12 +585,11 @@ The current repository has the following verified limitations or gaps.
 - There is no dedicated searchable or filterable macro browser.
 - There is no real user-facing sorting feature in the macro dialog.
 
-### 9.3 Interchange-format gap
+### 9.3 Interchange formats: engine vs setup
 
-- Current macro import and export is UniKey’s own plain text `key:text` format.
-- There is no JSON export or import.
-- There is no plist export or import for macOS tooling.
-- There is no generic schema for exchanging macros with other editors or Vietnamese input packages.
+- **Engine canonical path:** load/save for `UNIKEY_MACRO_FILE` remains **UniKey TEXT** plus optional **`.ukmcache`** (§7.1). The IBus engine does not read JSON/YAML/etc. directly off that path.
+- **Setup application:** the macro dialog can **import and export** **`CMacroTable`** through **JSON, YAML, Apple plist (text substitutions), CSV, and TSV** in addition to native TEXT, using **`macro_interchange_*_path`** and registered handlers (§7.8).
+- **Remaining gap:** there is no published, versioned interchange schema document for external tool authors; each codec follows conventions implemented in `setup/macro_handler_*.cpp`.
 
 ### 9.4 Rendering boundary limitation
 
@@ -584,16 +612,15 @@ Pick one of these directions:
 1. expose VIQR and MsVi through GSettings and the setup UI
 2. or explicitly document them as internal-only tables and keep them unreachable from the public path
 
-### 10.2 Improve macro interoperability
+### 10.2 Harden macro interoperability
 
-If macro portability matters, add a formal interchange layer with:
+Structured interchange (**JSON, YAML, plist, CSV, TSV**) already exists in the setup app (§7.8). Worth doing next:
 
-- JSON
-- plist
-- a documented versioned format schema
-- import and export adapters for external macro ecosystems that you want to support
+- publish a short **versioned schema** or examples per format so other tools can rely on stable field names and shapes
+- **round-trip tests** (import → export → compare) per codec
+- explicit documentation of **case rules** and **escape semantics** where they differ from UniKey TEXT
 
-This should be treated as a conversion feature, not just a file-save variant, because external tools often differ in escaping, encoding, trigger matching, and case rules.
+External macro ecosystems still differ in trigger matching and encoding; treat interchange as a **conversion** surface, not guaranteed identity with third-party editors.
 
 ### 10.3 Improve macro UX
 
@@ -636,10 +663,11 @@ These files are the most important entry points when tracing the current impleme
 - Input event definitions: `include/ukengine/core/inputproc.h`
 - Vietnamese symbolic vocabulary: `include/ukengine/mapping/vnlexi.h`
 - Charset conversion layer: `ukengine/mapping/charset_components/*.cpp`
-- Macro TEXT codec: `ukengine/mapping/text_macro_format.cpp`
+- Macro TEXT codec (engine / native table I/O): `ukengine/mapping/text_macro_format.cpp`
 - Macro binary cache: `ukengine/mapping/macro_cache.cpp`
 - Macro persistence and lookup: `ukengine/mapping/mactab.cpp`
 - Shared limits and enums: `include/ukengine/mapping/keycons.h`
+- **Setup macro interchange (import/export codecs):** `setup/macro_file_io.cpp`, `setup/macro_format_handler_registry.cpp`, `setup/macro_interchange_common.cpp`, `setup/macro_handler_text.cpp`, `setup/macro_handler_json.cpp`, `setup/macro_handler_yaml.cpp`, `setup/macro_handler_plist.cpp`, `setup/macro_handler_csv.cpp`
 
 ### 11.1 Refactored module directories (May 2026)
 
@@ -713,13 +741,11 @@ Luồng là:
 - Số macro và độ dài key/value trong bảng không còn bị giới hạn cứng kiểu cũ (1024 macro / 16 ký tự key); giới hạn thực tế chủ yếu là bộ nhớ; đường gõ vẫn có giới hạn `MACRO_MATCH_MAX_KEY_UNITS` khi thử khớp macro.
 - File TEXT có sidecar cache nhị phân tùy chọn `.ukmcache` (xem mục 7).
 
-UI macro hiện có import và export file text kiểu UniKey, nhưng chưa có:
+UI macro hiện có import và export **file text kiểu UniKey** và thêm **JSON, YAML, plist, CSV, TSV** (hộp thoại chọn file theo đuôi mở rộng; xem mục 7.8), nhưng chưa có:
 
 - ô search riêng
 - sort thực sự cho người dùng
-- export hoặc import JSON
-- export hoặc import plist
-- lớp tương thích với format macro của các gói khác
+- tài liệu schema chính thức cho từng định dạng trao đổi
 
 ### 12.6 Kết luận ngắn
 
