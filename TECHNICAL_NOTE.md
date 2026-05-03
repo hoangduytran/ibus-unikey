@@ -1,6 +1,6 @@
 # ibus-unikey Technical Note
 
-This note is intended to match the current source tree in this repository as of 19 April 2026, with macro I/O and cache details updated in May 2026.
+This note is intended to match the current source tree in this repository as of **May 2026** (macro I/O, cache, and refactored **engine / charset / setup** module directories).
 
 If this note, older screenshots, or user-facing help text disagree with the implementation, the code wins. In a few places the shipped help text is stale; those mismatches are called out explicitly below.
 
@@ -22,6 +22,7 @@ If this note, older screenshots, or user-facing help text disagree with the impl
 - [9. Current Limitations and Missing Features](#9-current-limitations-and-missing-features)
 - [10. Suggestions](#10-suggestions)
 - [11. Source Map](#11-source-map)
+  - [11.1 Refactored module directories (May 2026)](#111-refactored-module-directories-may-2026)
 - [12. Tóm tắt tiếng Việt](#12-tom-tat-tieng-viet)
 
 ## 1. Scope
@@ -85,7 +86,7 @@ It also owns global output buffers such as `UnikeyBuf`, `UnikeyBufChars`, and `U
 
 - `ukengine/core/inputproc.cpp`
 - `include/ukengine/core/inputproc.h`
-- `ukengine/engine/ukengine.cpp`
+- `ukengine/engine/engine_components/` and `ukengine/engine/engine_components/table_components/` (split compilation units for `UkEngine`, syllable tables, and helpers; see [§11.1](#111-refactored-module-directories-may-2026))
 - `include/ukengine/engine/ukengine.h`
 - `include/ukengine/mapping/vnlexi.h`
 
@@ -93,7 +94,7 @@ This layer classifies keys into semantic Vietnamese events, tracks the current w
 
 ### 2.5 Charset conversion and macro persistence layer
 
-- `ukengine/mapping/charset.cpp`
+- `ukengine/mapping/charset_components/` (split `.cpp` units behind `VnConvert` and related; see [§11.1](#111-refactored-module-directories-may-2026))
 - `include/ukengine/mapping/charset.h`
 - `include/ukengine/mapping/vnconv.h`
 - `include/ukengine/mapping/macro_format.h` (abstract `MacroFormat`)
@@ -107,7 +108,7 @@ This layer converts the engine’s internal Vietnamese representation to the sel
 
 ### 2.6 Setup application layer
 
-- `setup/controller/setup_controller.cpp`
+- `setup/controller/setup_controller.h` and `setup/controller/setup_controller_components/` (split controller implementation; see [§11.1](#111-refactored-module-directories-may-2026))
 - `setup/config/settings_store.cpp`
 - `setup/macro_utils.cpp`
 - `setup/ui/main_window.ui`
@@ -139,20 +140,21 @@ ukengine/engine/unikey.cpp
   UnikeyFilter()
             |
             v
-ukengine/engine/ukengine.cpp
-  UkEngine::process()
+ukengine/engine/engine_components/
+  UkEngine::process() in process_io.cpp; composition in append, word, state,
+  macro, restore, setup, diacritic_processing; syllable tables in table_components/
             |
             v
 ukengine/core/inputproc.cpp
   classify key under active input method
             |
             v
-ukengine/engine/ukengine.cpp
+(same engine_components/)
   update composition buffer / macro match / restore / tone placement
             |
             v
-ukengine/mapping/charset.cpp
-  convert internal representation to selected output charset
+ukengine/mapping/charset_components/
+  convert internal representation to selected output charset (VnConvert, etc.)
             |
             v
 src/engine.cpp
@@ -624,20 +626,44 @@ These files are the most important entry points when tracing the current impleme
 - Engine application metadata and stale help text: `src/engine/engine_app.cpp`
 - Config key maps and macro path: `src/config/unikey_config.h`
 - GSettings schema: `src/config/org.freedesktop.ibus.engine.unikey.gschema.xml`
-- Setup controller: `setup/controller/setup_controller.cpp`
+- Setup controller: `setup/controller/setup_controller.h`, `setup/controller/setup_controller_components/*.cpp`
 - Setup settings wrapper: `setup/config/settings_store.cpp`
 - Setup macro helpers: `setup/macro_utils.cpp`
 - Macro dialog UI: `setup/ui/macro_dialog.ui`
 - UniKey wrapper/runtime bridge: `ukengine/engine/unikey.cpp`
-- Core composition engine: `ukengine/engine/ukengine.cpp`
+- Core composition engine: `ukengine/engine/engine_components/*.cpp`, `ukengine/engine/engine_components/table_components/*.cpp` (main entry `UkEngine::process` in `process_io.cpp`)
 - Input method mapping tables: `ukengine/core/inputproc.cpp`
 - Input event definitions: `include/ukengine/core/inputproc.h`
 - Vietnamese symbolic vocabulary: `include/ukengine/mapping/vnlexi.h`
-- Charset conversion layer: `ukengine/mapping/charset.cpp`
+- Charset conversion layer: `ukengine/mapping/charset_components/*.cpp`
 - Macro TEXT codec: `ukengine/mapping/text_macro_format.cpp`
 - Macro binary cache: `ukengine/mapping/macro_cache.cpp`
 - Macro persistence and lookup: `ukengine/mapping/mactab.cpp`
 - Shared limits and enums: `include/ukengine/mapping/keycons.h`
+
+### 11.1 Refactored module directories (May 2026)
+
+Several former single-file modules are now **split across multiple `.cpp` translation units** while keeping the same public headers and link boundary (`libukengine.a` / setup executable). CMake lists the exact object files in `ukengine/CMakeLists.txt` and `setup/CMakeLists.txt`.
+
+**`ukengine/engine/engine_components/`** — `UkEngine` implementation (non-table logic):
+
+- `process_io.cpp` — `UkEngine::process`, escape/no-spell paths, backspace output
+- `append.cpp`, `word.cpp`, `state.cpp`, `macro.cpp`, `restore.cpp`, `setup.cpp`, `diacritic_processing.cpp`
+- `engine_internal.h`, `engine_tables_shared.h` — shared between these TUs (not public API)
+
+**`ukengine/engine/engine_components/table_components/`** — syllable-table machinery keyed off `UkEngine`:
+
+- `table_globals.cpp`, `table_init.cpp`, `table_lookup.cpp`, `table_keyproc.cpp`, `table_comparators.cpp`, `table_validators.cpp`, `table_vcpair.cpp`, `table_vseq_cseq.cpp`, `table_internal.h`
+
+**`ukengine/mapping/charset_components/`** — charset conversion behind `VnConvert()` / `charset.h`:
+
+- `charset_globals.cpp`, `charset_base.cpp`, `charset_unicode.cpp`, `charset_doublebyte.cpp`, `charset_viqr.cpp`, `charset_utf8_viqr.cpp`, `charset_library.cpp`, `charset_wincp1258.cpp`, `charset_stdvn.cpp`, `charset_internal.h`
+
+**`setup/controller/setup_controller_components/`** — GTK setup controller (header `setup/controller/setup_controller.h`):
+
+- `setup_controller_helpers.cpp`, `setup_controller_globals.cpp`, `setup_controller_lifecycle.cpp`, `setup_controller_config.cpp`, `setup_controller_macro_io.cpp`, `setup_controller_macro_model.cpp`, `setup_controller_macro_editor.cpp`, `setup_controller_internal.h`
+
+There is **no** longer a monolithic `ukengine/engine/ukengine.cpp`, `ukengine/mapping/charset.cpp`, or `setup/controller/setup_controller.cpp` in the tree; behavior is intended to match the pre-split layout.
 
 ## 12. Tóm tắt tiếng Việt
 
@@ -670,7 +696,7 @@ Các lớp trung gian chính là:
 - trạng thái soạn thảo trong `UkEngine`
 - ký hiệu tiếng Việt chuẩn `VnLexiName`
 - biểu diễn chuẩn `StdVnChar`
-- lớp chuyển mã `VnConvert()` hoặc `charset.cpp`
+- lớp chuyển mã `VnConvert()` / các file trong `charset_components/`
 
 Không có bước nào tạo keycode cuối cùng cho font. Engine tạo văn bản, còn font stack hiển thị.
 
