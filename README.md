@@ -39,6 +39,8 @@ sudo apt install libgtk-3-dev libjson-glib-dev libplist-dev libcsv-dev libyaml-c
 
 (Fedora/arch names differ; use your distro’s search for `json-glib`, `libplist`, `libcsv`, `yaml-cpp`.)
 
+**Macro table cache (`.ukmcache`)** — The engine keeps an optional **binary sidecar** next to the canonical macro **text** file: if your macros live at `path/to/macros.txt`, the cache is `path/to/macros.txt.ukmcache`. On load, UniKey first tries this cache; it is used only when the file magic and format version match **and** an **FNV-1a 64-bit fingerprint** of the text file’s raw bytes matches the value stored in the cache (so any edit to the text file invalidates it). That avoids re-parsing large UTF-8/VIQR tables when nothing changed. The cache is **not** part of macro interchange exports (YAML, JSON, plist, etc.); it is recreated from the text file when you save or when the engine refreshes the table. If a sidecar seems wrong or stale, delete the `.ukmcache` file and rely on the text source; the next successful load will rebuild it.
+
 ### Testing
 
 The project uses **CTest**. After configuring a build directory, run the full suite in any of these equivalent ways:
