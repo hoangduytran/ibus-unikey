@@ -47,7 +47,13 @@ add_executable(ibus-setup-unikey
     macro_utils.cpp
     ui/setup_view.cpp
     config/settings_store.cpp
-    controller/setup_controller.cpp
+    controller/setup_controller_components/setup_controller_helpers.cpp
+    controller/setup_controller_components/setup_controller_globals.cpp
+    controller/setup_controller_components/setup_controller_lifecycle.cpp
+    controller/setup_controller_components/setup_controller_config.cpp
+    controller/setup_controller_components/setup_controller_macro_io.cpp
+    controller/setup_controller_components/setup_controller_macro_model.cpp
+    controller/setup_controller_components/setup_controller_macro_editor.cpp
 )
 
 target_include_directories(ibus-setup-unikey PRIVATE

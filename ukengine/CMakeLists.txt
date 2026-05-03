@@ -1,7 +1,15 @@
 set(SOURCES
     core/byteio.cpp
     core/inputproc.cpp
-    mapping/charset.cpp
+    mapping/charset_components/charset_globals.cpp
+    mapping/charset_components/charset_base.cpp
+    mapping/charset_components/charset_unicode.cpp
+    mapping/charset_components/charset_doublebyte.cpp
+    mapping/charset_components/charset_viqr.cpp
+    mapping/charset_components/charset_utf8_viqr.cpp
+    mapping/charset_components/charset_library.cpp
+    mapping/charset_components/charset_wincp1258.cpp
+    mapping/charset_components/charset_stdvn.cpp
     mapping/macro_cache.cpp
     mapping/mactab.cpp
     mapping/text_macro_format.cpp
@@ -20,7 +28,22 @@ set(SOURCES
     tables/usrkeymap.cpp
     patterns/pattern.cpp
     roof/convert.cpp
-    engine/ukengine.cpp
+    engine/engine_components/table_components/table_globals.cpp
+    engine/engine_components/table_components/table_vseq_cseq.cpp
+    engine/engine_components/table_components/table_vcpair.cpp
+    engine/engine_components/table_components/table_keyproc.cpp
+    engine/engine_components/table_components/table_comparators.cpp
+    engine/engine_components/table_components/table_validators.cpp
+    engine/engine_components/table_components/table_init.cpp
+    engine/engine_components/table_components/table_lookup.cpp
+    engine/engine_components/diacritic_processing.cpp
+    engine/engine_components/append.cpp
+    engine/engine_components/process_io.cpp
+    engine/engine_components/state.cpp
+    engine/engine_components/macro.cpp
+    engine/engine_components/restore.cpp
+    engine/engine_components/setup.cpp
+    engine/engine_components/word.cpp
     engine/unikey.cpp
 )
 
@@ -38,6 +61,8 @@ target_include_directories(ukengine
       ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/core
       ${CMAKE_CURRENT_SOURCE_DIR}/../include/ukengine/engine
       ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/engine
+      ${CMAKE_CURRENT_SOURCE_DIR}/mapping
 )
 
 set_target_properties(ukengine PROPERTIES COMPILE_FLAGS "-funsigned-char -Wno-invalid-source-encoding -Wno-narrowing")

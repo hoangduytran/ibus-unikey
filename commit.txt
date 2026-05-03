@@ -1,105 +1,165 @@
-feat(setup): macro interchange handlers with library-backed codecs
+Commit: modular splits (ukengine charset, engine, syllable tables; setup controller) + clangd + include hygiene
+============================================================================================================
 
-## Why
+This commit replaces several very large translation units with smaller, topic-focused
+files so behavior stays the same while navigation, review, and clangd diagnostics
+improve. It also aligns `.clangd` with ukengine compile flags and trims redundant
+includes so “unused include” (brown) warnings go away where we touched the tree.
 
-ibus-unikey users need to import/export macros in formats common on other platforms
-(Espanso YAML, generic JSON, Apple text-replacement plist, CSV/TSV) without maintaining
-fragile hand-rolled parsers. Using well-tested libraries reduces corner-case bugs, improves
-binary plist and structured YAML support, and keeps CI honest about real dependencies.
+Root / tooling
+--------------
+.clangd
+  Reason: Point clangd at `build/` for `compile_commands.json` when present, and add
+  `-Wno-invalid-source-encoding` and `-Wno-narrowing` so IDE analysis matches the
+  ukengine target (fewer false positives on legacy comments / conversions).
 
-## What changed
+ukengine/CMakeLists.txt
+  Reason: Register new source lists: `mapping/charset_components/*.cpp`,
+  `engine/engine_components/*.cpp`, and `engine/engine_components/table_components/*.cpp`.
+  Remove monolithic `mapping/charset.cpp`, `engine/ukengine.cpp`. Add include directories
+  `${CMAKE_CURRENT_SOURCE_DIR}/engine` and `${CMAKE_CURRENT_SOURCE_DIR}/mapping` so
+  short includes like `engine_components/...` and `charset_components/...` resolve.
 
-### Interchange architecture
+setup/CMakeLists.txt
+  Reason: Replace `controller/setup_controller.cpp` with the
+  `controller/setup_controller_components/*.cpp` list. `controller/` was already on
+  the include path so `setup_controller_components/...` works without extra CMake.
 
-- **Registry:** `MacroFormatHandlerRegistry` maps `MacroInterchangeForcedFormat` and lowercase
-  file suffixes to handler factories (thread-safe; factories run outside the registry lock).
-- **Dispatch:** `macro_file_io.cpp` routes import/export by explicit format or AUTO from the path.
-- **Shared utilities:** `macro_interchange_common.cpp` centralizes `GError` domain helpers, file
-  slurping, extension sniffing, `StdVnChar` folding order, and UTF-8 encoding for export.
+Deleted monoliths (logic moved, not removed)
+--------------------------------------------
+ukengine/mapping/charset.cpp
+  Reason: Split into `charset_components/` (see below). Public API remains in
+  `include/ukengine/mapping/charset.h`.
 
-### Codecs (per-handler TU + static registration)
+ukengine/engine/ukengine.cpp
+  Reason: Split into `engine/engine_components/*.cpp` plus `table_components/` (see below).
+  `engine/unikey.cpp` and public headers unchanged for external callers.
 
-- **Text:** `macro_handler_text.cpp` still delegates to `TextMacroFormat` for native `.txt`/`.macro`.
-- **JSON:** `macro_handler_json.cpp` uses **json-glib** (arrays of `{trigger, content}` or flat maps).
-- **Plist:** `macro_handler_plist.cpp` uses **libplist** for XML and binary plists (`shortcut`/`phrase`,
-  `replace`/`with` aliases).
-- **YAML:** `macro_handler_yaml.cpp` uses **yaml-cpp** for Espanso-shaped `matches:` sequences.
-- **CSV/TSV:** `macro_handler_csv.cpp` uses **libcsv** for parsing and `csv_write` for export
-  (all fields quoted; valid RFC-style output).
+setup/controller/setup_controller.cpp
+  Reason: Split into `setup_controller_components/` (see below). `setup_controller.h`
+  remains the public API.
 
-### UI and ergonomics
+New: ukengine/mapping/charset_components/
+------------------------------------------
+charset_internal.h
+  Reason: Shared `extern` for LoVowel, HiVowel, VIQREscapes, VIQREscCount and declaration
+  of `wideCharCompare` so multiple `.cpp` files can link without duplicating globals.
 
-- **`macro_dialog_state.cpp` / header:** Persists macro file chooser last directory via config;
-  migrates invalid paths to `~/Documents`.
-- **`macro_export_filename.cpp` / header:** Normalizes export basenames vs selected filter extension.
-- **`macro_utils.cpp`:** Clearer naming for list-store ↔ `CMacroTable` mirroring (last-wins policy).
+charset_globals.cpp
+  Reason: Global tables/objects: LoVowel, HiVowel, SgCharsets, DbCharsets, VnCharsetLibObj.
 
-### Engine / docs
+charset_base.cpp
+  Reason: VnCharset, VnInternalCharset, SingleByteCharset.
 
-- **`text_macro_format.cpp`:** Comments and export/import documentation aligned with interchange
-  behavior (no semantic breakage intended).
+charset_unicode.cpp
+  Reason: Unicode stack: wideCharCompare, UnicodeCharset, composite/UTF-8/ref/hex/C-string
+  charsets, hexDigitValue, etc.
 
-### Build & CI
+charset_doublebyte.cpp
+  Reason: DoubleByteCharset.
 
-- **`setup/CMakeLists.txt`:** `pkg_check_modules` / `find_*` for **json-glib**, **libplist**,
-  **libcsv**, **yaml-cpp**; link `yaml-cpp::yaml-cpp` and other deps on `macro_interchange`.
-- **`.travis.yml`:** Installs `libjson-glib-dev`, `libplist-dev`, `libcsv-dev`, `libyaml-cpp-dev`
-  (plus existing GTK/ibus packages).
+charset_viqr.cpp
+  Reason: VIQR tables and VIQRCharset. `VIQREscCount` is non-const so the library TU can
+  link the symbol declared in charset_internal.h.
 
-### Developer experience
+charset_utf8_viqr.cpp
+  Reason: UTF8VIQRCharset.
 
-- **`.clangd`:** Uses `CompilationDatabase: build` so clangd resolves GTK/plist/json-glib/yaml-cpp
-  includes when `build/compile_commands.json` exists.
-- **`.gitignore`:** Stop ignoring `.clangd` so the project can ship a minimal config.
+charset_library.cpp
+  Reason: CVnCharsetLib (ctor/dtor/getVnCharset) and VnConv{Set,Get,Reset}Options.
 
-### Tests
+charset_wincp1258.cpp
+  Reason: WinCP1258Charset.
 
-- **Existing `tests/macros/` tree** (already tracked) remains the canonical macro interchange coverage:
-  `macro_file_io_test` loads fixtures by extension (`*.txt`, `*.yaml`, `*.plist`, `*.json`, `*.csv`),
-  plus dialog-state and export-filename tests. No behavioral change required in those sources for
-  this commit; they validate the new libraries at link/runtime.
+charset_stdvn.cpp
+  Reason: StdVnToUpper, StdVnToLower, StdVnGetRoot.
 
-*(A duplicate `tests/UI/macros/` layout with stale `src/setup/` paths was **not** added; use
-`tests/macros/` only.)*
+New: ukengine/engine/engine_components/
+-----------------------------------------
+engine_internal.h
+  Reason: Shared macros/helpers (ENTER_CHAR, case helpers, vnToLower/changeCase) and
+  `vnlexi.h` only. Keycons was removed from here so the header is not falsely “unused”;
+  TUs that need MACRO_* include `keycons.h` themselves.
 
-## Files touched (this commit)
+engine_tables_shared.h
+  Reason: Syllable struct types and extern declarations for table data and lookups.
+  Now includes only `ukengine.h` (which already pulls charset + vnlexi) to avoid duplicate
+  / redundant includes flagged by clangd.
 
-- `.gitignore`
-- `.travis.yml`
-- `.clangd` (new)
-- `include/setup/macro_dialog_state.h`
-- `include/setup/macro_export_filename.h`
-- `include/setup/macro_file_io.h`
-- `include/setup/macro_format_handler.h`
-- `include/setup/macro_format_handler_registry.h`
-- `include/setup/macro_handler_csv.h`
-- `include/setup/macro_handler_json.h`
-- `include/setup/macro_handler_plist.h`
-- `include/setup/macro_handler_text.h`
-- `include/setup/macro_handler_yaml.h`
-- `include/setup/macro_interchange_common.h`
-- `setup/CMakeLists.txt`
-- `setup/config/settings_store.cpp`
-- `setup/macro_dialog_state.cpp`
-- `setup/macro_export_filename.cpp`
-- `setup/macro_file_io.cpp`
-- `setup/macro_format_handler_registry.cpp`
-- `setup/macro_handler_csv.cpp`
-- `setup/macro_handler_json.cpp`
-- `setup/macro_handler_plist.cpp`
-- `setup/macro_handler_text.cpp`
-- `setup/macro_handler_yaml.cpp`
-- `setup/macro_interchange_common.cpp`
-- `setup/macro_utils.cpp`
-- `setup/main.cpp`
-- `setup/signal_handlers.cpp`
-- `setup/ui/setup_view.cpp`
-- `ukengine/mapping/text_macro_format.cpp`
-- `commit.txt` (this note; forced add — matches `*commit.txt` ignore pattern)
+append.cpp, diacritic_processing.cpp, process_io.cpp, state.cpp, macro.cpp,
+restore.cpp, setup.cpp, word.cpp
+  Reason: Pieces of the former `ukengine.cpp`, each file scoped by feature (append VIQR,
+  diacritics, I/O and process(), state/buffer, macro match, restore, SetupUnikeyEngine,
+  word helpers). Includes trimmed so each file only pulls what it uses (e.g. restore and
+  macro use `ukengine.h` where syllable-table headers are unnecessary; macro keeps
+  `engine_internal.h` + `keycons.h` + `vnconv.h`).
 
-## Verify locally
+New: ukengine/engine/engine_components/table_components/
+-------------------------------------------------------
+table_internal.h
+  Reason: Declarations for tripleVowelCompare, tripleConCompare, VCPairCompare.
 
-```bash
-sudo apt-get install libgtk-3-dev libjson-glib-dev libplist-dev libcsv-dev libyaml-cpp-dev
-mkdir -p build && cd build && cmake .. && cmake --build . -j$(nproc) && ctest --output-on-failure
-```
+table_globals.cpp
+  Reason: IsVnVowel, SpecialWesternChars, IsoStdVnCharMap.
+
+table_vseq_cseq.cpp
+  Reason: VSeqList, CSeqList, VSeqCount/CSeqCount, SortedVSeqList, SortedCSeqList.
+
+table_vcpair.cpp
+  Reason: VCPairList, VCPairCount.
+
+table_keyproc.cpp
+  Reason: UkKeyProcList, UkEngine::m_classInit (typedef stays in engine_tables_shared.h).
+
+table_comparators.cpp
+  Reason: Comparator functions for qsort/bsearch.
+
+table_validators.cpp
+  Reason: isValidCV, isValidVC, isValidCVC.
+
+table_init.cpp
+  Reason: engineClassInit; extern AZLexiUpper/Lower; needs comparators + qsort.
+
+table_lookup.cpp
+  Reason: lookupVSeq, lookupCSeq.
+
+New: setup/controller/setup_controller_components/
+----------------------------------------------------
+setup_controller_internal.h
+  Reason: Shared helpers: macro error dialog, UTF-8 casefold, MacroEditorShell, list row
+  append, import/export choosers.
+
+setup_controller_helpers.cpp
+  Reason: Implementations for the above (gettext, GTK, macro file chooser hooks).
+
+setup_controller_globals.cpp
+  Reason: global_setup_controller / global_setup_controller_set.
+
+setup_controller_lifecycle.cpp
+  Reason: ctor, init, main window key/destroy, Close.
+
+setup_controller_config.cpp
+  Reason: Combo/toggle GSettings sync (input method, output charset).
+
+setup_controller_macro_io.cpp
+  Reason: Macro preferences modal (load/save), import/export paths, merge/commit.
+
+setup_controller_macro_model.cpp
+  Reason: Macro list store, search projection, sorting, canonical row model.
+
+setup_controller_macro_editor.cpp
+  Reason: Non-modal add/edit dialog, clear-all confirm.
+
+Rationale summary
+-----------------
+- Smaller files reduce merge conflicts and make ownership of logic obvious.
+- Shared headers (`charset_internal.h`, `table_internal.h`, `setup_controller_internal.h`,
+  `engine_tables_shared.h`) keep link-visible symbols and types in one place.
+- Include hygiene satisfies clangd “unused include” diagnostics without changing runtime
+  behavior.
+
+How to verify
+-------------
+cmake -B build && cmake --build build -j
+build/tests/ukengine_test
+ibus-setup-unikey / ibus-engine-unikey build as part of full tree.

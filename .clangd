@@ -2,3 +2,7 @@
 # Paths are relative to this directory.
 CompileFlags:
   CompilationDatabase: build
+  # Align with ukengine target flags so clangd does not warn on UTF-8 in comments, etc.
+  Add:
+    - -Wno-invalid-source-encoding
+    - -Wno-narrowing
