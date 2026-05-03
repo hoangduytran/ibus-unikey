@@ -3,7 +3,8 @@
  * @file macro_file_io.cpp
  * @brief Macro interchange entry points and GTK file chooser filters.
  *
- * Per-format logic lives in `macro_handler_*.cpp` classes derived from `MacroFormatHandler`.
+ * Handler types and AUTO suffix routing are registered in each
+ * `macro_handler_*.cpp` via `MacroFormatHandlerRegistry::register_handler`.
  */
 
 #include <setup/macro_file_io.h>
@@ -15,39 +16,10 @@
 #include <gtk/gtk.h>
 
 #include <setup/macro_format_handler.h>
-#include <setup/macro_handler_csv.h>
-#include <setup/macro_handler_json.h>
-#include <setup/macro_handler_plist.h>
-#include <setup/macro_handler_text.h>
-#include <setup/macro_handler_yaml.h>
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 
 #include <ukengine/mapping/mactab.h>
-
-namespace {
-
-std::unique_ptr<MacroFormatHandler> make_handler(MacroInterchangeForcedFormat fmt) {
-  switch (fmt) {
-  case MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY:
-    return std::unique_ptr<MacroFormatHandler>(new TextMacroHandler());
-  case MACRO_INTERCHANGE_FORMAT_YAML:
-    return std::unique_ptr<MacroFormatHandler>(new YamlEspansoMacroHandler());
-  case MACRO_INTERCHANGE_FORMAT_PLIST:
-    return std::unique_ptr<MacroFormatHandler>(new PlistTextReplacementMacroHandler());
-  case MACRO_INTERCHANGE_FORMAT_JSON:
-    return std::unique_ptr<MacroFormatHandler>(new JsonMacroInterchangeHandler());
-  case MACRO_INTERCHANGE_FORMAT_CSV:
-    return std::unique_ptr<MacroFormatHandler>(
-        new DelimitedTextMacroHandler(',', MACRO_INTERCHANGE_FORMAT_CSV));
-  case MACRO_INTERCHANGE_FORMAT_TSV:
-    return std::unique_ptr<MacroFormatHandler>(
-        new DelimitedTextMacroHandler('\t', MACRO_INTERCHANGE_FORMAT_TSV));
-  default:
-    return nullptr;
-  }
-}
-
-} // namespace
 
 gboolean macro_table_load_any_format(const gchar *filename, CMacroTable *table, GError **error) {
   return macro_interchange_import_path(filename, table, MACRO_INTERCHANGE_FORMAT_AUTO, nullptr, error);
@@ -68,9 +40,9 @@ gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table
 
   MacroInterchangeForcedFormat fmt = forced;
   if (fmt == MACRO_INTERCHANGE_FORMAT_AUTO)
-    fmt = macro_interchange::detect_format_from_path(filename);
+    fmt = MacroFormatHandlerRegistry::detect_from_path(filename);
 
-  std::unique_ptr<MacroFormatHandler> h = make_handler(fmt);
+  std::unique_ptr<MacroFormatHandler> h = MacroFormatHandlerRegistry::create(fmt);
   if (!h) {
     macro_interchange::fail(err, "Unsupported macro interchange format");
     return FALSE;
@@ -92,9 +64,9 @@ gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table
 
   MacroInterchangeForcedFormat fmt = forced;
   if (fmt == MACRO_INTERCHANGE_FORMAT_AUTO)
-    fmt = macro_interchange::detect_format_from_path(filename);
+    fmt = MacroFormatHandlerRegistry::detect_from_path(filename);
 
-  std::unique_ptr<MacroFormatHandler> h = make_handler(fmt);
+  std::unique_ptr<MacroFormatHandler> h = MacroFormatHandlerRegistry::create(fmt);
   if (!h) {
     macro_interchange::fail(err, "Unsupported macro interchange export format");
     return FALSE;

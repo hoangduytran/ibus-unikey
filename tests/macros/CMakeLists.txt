@@ -55,11 +55,21 @@ target_include_directories(test-macro-file-io PRIVATE
     ${PROJECT_SOURCE_DIR}/include/ukengine
 )
 
-target_link_libraries(test-macro-file-io
-    macro_interchange
-    ukengine
-    ${GTK3_TEST_LIBRARIES}
-)
+if(APPLE)
+  target_link_libraries(test-macro-file-io PRIVATE
+      "-Wl,-force_load,$<TARGET_FILE:macro_interchange>"
+      ukengine
+      ${GTK3_TEST_LIBRARIES}
+  )
+else()
+  target_link_libraries(test-macro-file-io PRIVATE
+      -Wl,--whole-archive
+      macro_interchange
+      -Wl,--no-whole-archive
+      ukengine
+      ${GTK3_TEST_LIBRARIES}
+  )
+endif()
 
 add_test(
     NAME macro-file-io-test

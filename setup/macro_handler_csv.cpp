@@ -3,9 +3,11 @@
 #include <setup/macro_handler_csv.h>
 
 #include <algorithm>
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/vnconv.h>
@@ -164,3 +166,34 @@ gboolean DelimitedTextMacroHandler::export_to_path(const gchar *path_utf8, CMacr
     return FALSE;
   return TRUE;
 }
+
+namespace {
+
+struct CsvMacroHandlerRegistrar {
+  CsvMacroHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_CSV,
+        []() {
+          return std::unique_ptr<MacroFormatHandler>(
+              new DelimitedTextMacroHandler(',', MACRO_INTERCHANGE_FORMAT_CSV));
+        },
+        {".csv"});
+  }
+};
+
+struct TsvMacroHandlerRegistrar {
+  TsvMacroHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_TSV,
+        []() {
+          return std::unique_ptr<MacroFormatHandler>(
+              new DelimitedTextMacroHandler('\t', MACRO_INTERCHANGE_FORMAT_TSV));
+        },
+        {".tsv"});
+  }
+};
+
+static CsvMacroHandlerRegistrar g_csv_macro_handler_registrar;
+static TsvMacroHandlerRegistrar g_tsv_macro_handler_registrar;
+
+} // namespace

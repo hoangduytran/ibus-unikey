@@ -2,9 +2,11 @@
 
 #include <setup/macro_handler_json.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/vnconv.h>
@@ -231,3 +233,18 @@ gboolean JsonMacroInterchangeHandler::export_to_path(const gchar *path_utf8, CMa
     return FALSE;
   return TRUE;
 }
+
+namespace {
+
+struct JsonMacroInterchangeHandlerRegistrar {
+  JsonMacroInterchangeHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_JSON,
+        []() { return std::unique_ptr<MacroFormatHandler>(new JsonMacroInterchangeHandler()); },
+        {".json"});
+  }
+};
+
+static JsonMacroInterchangeHandlerRegistrar g_json_macro_interchange_handler_registrar;
+
+} // namespace

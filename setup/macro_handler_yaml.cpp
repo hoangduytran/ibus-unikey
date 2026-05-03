@@ -2,9 +2,11 @@
 
 #include <setup/macro_handler_yaml.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/vnconv.h>
@@ -165,3 +167,18 @@ gboolean YamlEspansoMacroHandler::export_to_path(const gchar *path_utf8, CMacroT
     return FALSE;
   return TRUE;
 }
+
+namespace {
+
+struct YamlEspansoMacroHandlerRegistrar {
+  YamlEspansoMacroHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_YAML,
+        []() { return std::unique_ptr<MacroFormatHandler>(new YamlEspansoMacroHandler()); },
+        {".yaml", ".yml"});
+  }
+};
+
+static YamlEspansoMacroHandlerRegistrar g_yaml_espanso_macro_handler_registrar;
+
+} // namespace

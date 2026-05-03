@@ -3,6 +3,7 @@ pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
 
 add_library(macro_interchange STATIC
     macro_interchange_common.cpp
+    macro_format_handler_registry.cpp
     macro_handler_text.cpp
     macro_handler_yaml.cpp
     macro_handler_plist.cpp
@@ -38,12 +39,25 @@ target_include_directories(ibus-setup-unikey PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/config
     ${CMAKE_CURRENT_SOURCE_DIR}/controller
 )
-target_link_libraries(ibus-setup-unikey
-    macro_interchange
-    ukengine
-    unikey-config
-    ${GTK3_LIBRARIES}
-)
+# Pull every object from `macro_interchange` so per-handler static registrars run
+# (otherwise the linker may drop .o files whose only entry points are constructors).
+if(APPLE)
+  target_link_libraries(ibus-setup-unikey PRIVATE
+      "-Wl,-force_load,$<TARGET_FILE:macro_interchange>"
+      ukengine
+      unikey-config
+      ${GTK3_LIBRARIES}
+  )
+else()
+  target_link_libraries(ibus-setup-unikey PRIVATE
+      -Wl,--whole-archive
+      macro_interchange
+      -Wl,--no-whole-archive
+      ukengine
+      unikey-config
+      ${GTK3_LIBRARIES}
+  )
+endif()
 target_include_directories(ibus-setup-unikey PUBLIC ${GTK3_INCLUDE_DIRS})
 target_link_options(ibus-setup-unikey PRIVATE -rdynamic)
 

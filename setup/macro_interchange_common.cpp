@@ -45,21 +45,6 @@ std::string path_suffix_lower(const gchar *path) {
   return s;
 }
 
-MacroInterchangeForcedFormat detect_format_from_path(const gchar *path) {
-  const std::string suf = path_suffix_lower(path);
-  if (suf == ".yaml" || suf == ".yml")
-    return MACRO_INTERCHANGE_FORMAT_YAML;
-  if (suf == ".plist")
-    return MACRO_INTERCHANGE_FORMAT_PLIST;
-  if (suf == ".json")
-    return MACRO_INTERCHANGE_FORMAT_JSON;
-  if (suf == ".csv")
-    return MACRO_INTERCHANGE_FORMAT_CSV;
-  if (suf == ".tsv")
-    return MACRO_INTERCHANGE_FORMAT_TSV;
-  return MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY;
-}
-
 int compare_std_vn_keys(const StdVnChar *a, const StdVnChar *b) {
   int i = 0;
   StdVnChar ls1, ls2;

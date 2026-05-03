@@ -3,7 +3,9 @@
 #include <setup/macro_handler_text.h>
 
 #include <cstring>
+#include <memory>
 
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/text_macro_format.h>
@@ -39,3 +41,18 @@ gboolean TextMacroHandler::export_to_path(const gchar *path_utf8, CMacroTable *t
   }
   return TRUE;
 }
+
+namespace {
+
+struct TextMacroHandlerRegistrar {
+  TextMacroHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY,
+        []() { return std::unique_ptr<MacroFormatHandler>(new TextMacroHandler()); },
+        {".txt", ".macro"});
+  }
+};
+
+static TextMacroHandlerRegistrar g_text_macro_handler_registrar;
+
+} // namespace

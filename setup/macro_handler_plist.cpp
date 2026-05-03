@@ -3,9 +3,11 @@
 #include <setup/macro_handler_plist.h>
 
 #include <cstring>
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/vnconv.h>
@@ -220,3 +222,18 @@ gboolean PlistTextReplacementMacroHandler::export_to_path(const gchar *path_utf8
     return FALSE;
   return TRUE;
 }
+
+namespace {
+
+struct PlistTextReplacementMacroHandlerRegistrar {
+  PlistTextReplacementMacroHandlerRegistrar() {
+    MacroFormatHandlerRegistry::register_handler(
+        MACRO_INTERCHANGE_FORMAT_PLIST,
+        []() { return std::unique_ptr<MacroFormatHandler>(new PlistTextReplacementMacroHandler()); },
+        {".plist"});
+  }
+};
+
+static PlistTextReplacementMacroHandlerRegistrar g_plist_text_replacement_macro_handler_registrar;
+
+} // namespace

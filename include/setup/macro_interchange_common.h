@@ -24,8 +24,6 @@ bool read_file_utf8(const gchar *path, std::string *out, GError **err);
 
 std::string path_suffix_lower(const gchar *path);
 
-MacroInterchangeForcedFormat detect_format_from_path(const gchar *path);
-
 int compare_std_vn_keys(const StdVnChar *a, const StdVnChar *b);
 
 bool vn_std_to_utf8_grow(const StdVnChar *src, std::vector<char> &buf, bool *ok);
