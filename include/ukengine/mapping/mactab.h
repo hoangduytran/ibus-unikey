@@ -97,6 +97,30 @@ public:
 protected:
     void setLastError(int code, const char *msg = "");
 
+    /**
+     * @brief Convert external key/trigger strings into VNSTANDARD vectors for inserts.
+     * @param key Source trigger buffer in caller encoding (`charset`).
+     * @param text Source expansion buffer in caller encoding (`charset`).
+     * @param charset `VnConvert` input charset.
+     * @param[out] outKey Receives decoded key sequence.
+     * @param[out] outText Receives decoded expansion sequence.
+     * @return True on success; sets `MACTAB_ERR_CONVERT` when either side fails.
+     */
+    bool decodeMacroKeyAndText(const void *key, const void *text, int charset,
+                               std::vector<StdVnChar> &outKey,
+                               std::vector<StdVnChar> &outText);
+
+    /**
+     * @brief Append macro row or replace existing mapping for the same folded key (`last wins`).
+     * @param foldLookupBytes Map key identical to lookup folding from `foldedLookupKeyBytes`.
+     * @param keyVec Key vector consumed into storage.
+     * @param textVec Expansion vector consumed into storage.
+     * @return Stored row index; leaves `MACTAB_ERR_OK` on success paths.
+     */
+    int upsertMacroByFoldKey(std::string foldLookupBytes,
+                             std::vector<StdVnChar> keyVec,
+                             std::vector<StdVnChar> textVec);
+
     void rebuildLookupMap();
 
     std::vector<MacroEntry> m_entries;

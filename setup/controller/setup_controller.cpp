@@ -1,3 +1,14 @@
+/**
+ * @file setup_controller.cpp
+ * @brief GTK setup application: wiring UI signals to GSettings and macro
+ * list/editor flows.
+ *
+ * Public API contracts are declared in `setup_controller.h`. This file
+ * implements handlers for the main window, combo/toggle config sync, and the
+ * macro dialog (canonical row list, search projection, import/export, non-modal
+ * add/edit).
+ */
+
 #include "setup_controller.h"
 
 #include <cstring>
@@ -8,14 +19,21 @@
 #include "unikey_config.h"
 #include <ukengine/mapping/mactab.h>
 
+/** @brief Process-wide pointer for code that resolves the active setup
+ * controller instance. */
 static SetupController *s_global_controller = nullptr;
 
-// Return the globally registered setup controller instance.
-// @return registered global SetupController pointer
+/**
+ * @brief Query the globally registered controller (set during setup startup).
+ * @return Registered instance, or null before registration.
+ */
 SetupController *global_setup_controller() { return s_global_controller; }
 
-// Register the global setup controller instance.
-// @param c controller instance to register globally
+/**
+ * @brief Publish the global controller reference for teardown and cross-module
+ * lookups.
+ * @param c Instance to expose; normally non-null once main window is built.
+ */
 void global_setup_controller_set(SetupController *c) {
   s_global_controller = c;
 }
@@ -23,15 +41,21 @@ void global_setup_controller_set(SetupController *c) {
 #define _(str) gettext(str)
 
 /**
- * @brief Modal error dialog for macro load/save/export failures.
- * @param parent transient parent (usually the macro dialog window)
- * @param macro source of getLastErrorMessage() detail text
- * @param summary one-line user-facing lead (translated)
+ * @brief Show a modal error summary with backend detail from `CMacroTable`.
+ * @param parent Transient window (typically the macro dialog).
+ * @param macro Engine table carrying `getLastErrorMessage()` diagnostics.
+ * @param summary Short translated headline for the dialog.
+ *
+ * Progression:
+ * 1. Choose detail string (`getLastErrorMessage` or fallback).
+ * 2. Build body text run dialog modally destroy.
  */
 static void run_macro_error_dialog(GtkWindow *parent, CMacroTable *macro,
                                    const char *summary) {
   const char *d = macro->getLastErrorMessage();
-  if (d == NULL || d[0] == '\0')
+  const bool noBackendDetail =
+      (d == NULL || d[0] == '\0');
+  if (noBackendDetail)
     d = _("(no details)");
   gchar *text = g_strdup_printf("%s\n%s", summary, d);
   GtkWidget *dlg = gtk_message_dialog_new(
@@ -41,207 +65,490 @@ static void run_macro_error_dialog(GtkWindow *parent, CMacroTable *macro,
   gtk_widget_destroy(dlg);
 }
 
+/**
+ * @brief UTF-8 casefold used for substring search comparisons (glib semantics).
+ * @param utf8 Input C string; null is treated like empty input.
+ * @return Case-folded copy as `std::string`.
+ *
+ * Progression: normalize null-safe input -> `g_utf8_casefold` -> copy into RAII
+ * -> `g_free`.
+ */
 static std::string utf8_casefold_string(const char *utf8) {
-  // Progression: normalize null-safe input -> casefold with GLib -> return
-  // std::string copy.
+  // if the utf8 is null return an empty string
   gchar *f = g_utf8_casefold(utf8 ? utf8 : "", -1);
-  std::string out(f ? f : "");
+  std::string out(f ? f : ""); // create a new string from the folded utf8
   g_free(f);
-  return out;
+  return out; // return the string
 }
 
-// Construct the setup controller using the UI view and settings store.
-// @param view reference to the view wrapper used to access UI widgets
-// @param store reference to persistent settings storage backend
+namespace {
+
+/**
+ * @brief Widget handles for the non-modal macro add/edit dialog (content owned by the dialog).
+ */
+struct MacroEditorShell {
+  GtkWidget *dialog = nullptr;
+  GtkWidget *entryKey = nullptr;
+  GtkWidget *txtValue = nullptr;
+};
+
+/**
+ * @brief Create a `GtkLabel` with start (left) horizontal alignment.
+ * @param utf8_label_text Translated or plain UTF-8 label text.
+ * @return New label widget (floating ref).
+ */
+GtkWidget *macro_editor_label_start_aligned(const char *utf8_label_text) {
+  GtkWidget *label = gtk_label_new(utf8_label_text);
+  gtk_widget_set_halign(label, GTK_ALIGN_START);
+  return label;
+}
+
+/**
+ * @brief Apply spacing and border used for the macro editor form `GtkGrid`.
+ * @param grid Grid widget to style.
+ */
+void macro_editor_configure_form_grid(GtkWidget *grid) {
+  GtkGrid *g = GTK_GRID(grid);
+  gtk_grid_set_row_spacing(g, 6);
+  gtk_grid_set_column_spacing(g, 6);
+  gtk_container_set_border_width(GTK_CONTAINER(grid), 8);
+}
+
+/**
+ * @brief Build a sized `GtkScrolledWindow` containing the multiline value `GtkTextView`.
+ * @param[out] out_txtValue Receives the new text view (child of the scroll).
+ * @return The scroll container (floating ref).
+ *
+ * Progression:
+ * 1. Create scroll and text view; set minimum size and word-char wrap.
+ * 2. Pack the text view into the scroll.
+ */
+GtkWidget *macro_editor_build_value_scrolled(GtkWidget **out_txtValue) {
+  GtkWidget *scroll = gtk_scrolled_window_new(nullptr, nullptr);
+  gtk_widget_set_size_request(scroll, 360, 180);
+  *out_txtValue = gtk_text_view_new();
+  gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(*out_txtValue),
+                              GTK_WRAP_WORD_CHAR);
+  gtk_container_add(GTK_CONTAINER(scroll), *out_txtValue);
+  return scroll;
+}
+
+/**
+ * @brief Lay out Replace / With labels, trigger entry, and value scroll (four rows).
+ * @param grid Target grid (column 0 rows 0–3).
+ * @param entryReplace Single-line "Replace" `GtkEntry`.
+ * @param scrollValue `GtkScrolledWindow` holding the "With" `GtkTextView`.
+ */
+void macro_editor_attach_form_rows(GtkGrid *grid,
+                                   GtkWidget *entryReplace,
+                                   GtkWidget *scrollValue) {
+  GtkWidget *lblReplace =
+      macro_editor_label_start_aligned(_("Replace"));
+  GtkWidget *lblWith = macro_editor_label_start_aligned(_("With"));
+  gtk_grid_attach(grid, lblReplace, 0, 0, 1, 1);
+  gtk_grid_attach(grid, entryReplace, 0, 1, 1, 1);
+  gtk_grid_attach(grid, lblWith, 0, 2, 1, 1);
+  gtk_grid_attach(grid, scrollValue, 0, 3, 1, 1);
+}
+
+/**
+ * @brief Build the non-modal macro add/edit dialog shell (Replace/With fields, Cancel/Save).
+ * @param parent Transient parent window (macro preferences dialog).
+ * @param addMode When true, dialog title corresponds to adding a macro.
+ * @return Populated `MacroEditorShell` (dialog modality disabled).
+ *
+ * Progression:
+ * 1. Create `GtkDialog` with Cancel/Save responses.
+ * 2. Build styled grid, entry, and scrolled text view; attach rows; pack content area.
+ */
+MacroEditorShell build_macro_editor_shell(GtkWindow *parent, bool addMode) {
+  MacroEditorShell ui{};
+  ui.dialog = gtk_dialog_new_with_buttons(
+      addMode ? _("Add macro") : _("Edit macro"), parent,
+      GTK_DIALOG_DESTROY_WITH_PARENT, _("_Close"), GTK_RESPONSE_CANCEL, _("_Save"),
+      GTK_RESPONSE_OK, nullptr);
+  gtk_window_set_modal(GTK_WINDOW(ui.dialog), FALSE);
+
+  GtkWidget *grid = gtk_grid_new();
+  macro_editor_configure_form_grid(grid);
+  ui.entryKey = gtk_entry_new();
+  GtkWidget *scrollValue = macro_editor_build_value_scrolled(&ui.txtValue);
+  macro_editor_attach_form_rows(GTK_GRID(grid), ui.entryKey, scrollValue);
+
+  GtkWidget *content =
+      gtk_dialog_get_content_area(GTK_DIALOG(ui.dialog));
+  gtk_container_add(GTK_CONTAINER(content), grid);
+  return ui;
+}
+
+/**
+ * @brief Snapshot the UTF-8 text from the macro editor value `GtkTextView`.
+ * @param txtValue Text view for the replacement field.
+ * @return Newly allocated string; caller shall `g_free` it.
+ */
+gchar *read_macro_editor_multiline(GtkWidget *txtValue) {
+  GtkTextBuffer *buf =
+      gtk_text_view_get_buffer(GTK_TEXT_VIEW(txtValue));
+  GtkTextIter start, end;
+  gtk_text_buffer_get_bounds(buf, &start, &end);
+  return gtk_text_buffer_get_text(buf, &start, &end, FALSE);
+}
+
+/**
+ * @brief Append one macro row to the list store for the tree view.
+ * @param store Macro `GtkListStore`.
+ * @param key_utf8 NUL-terminated trigger text.
+ * @param value_utf8 NUL-terminated replacement text.
+ * @param canonicalIndex Index into the canonical in-memory row vector for this row.
+ */
+void append_macro_list_row(GtkListStore *store, const gchar *key_utf8,
+                           const gchar *value_utf8, int canonicalIndex) {
+  GtkTreeIter iter;
+  gtk_list_store_append(store, &iter);
+  gtk_list_store_set(store, &iter,
+                     COL_KEY, key_utf8,
+                     COL_VALUE, value_utf8,
+                     COL_CANONICAL_INDEX, canonicalIndex,
+                     -1);
+}
+
+/**
+ * @brief Create a modal save file chooser for exporting macros (GTK stock button labels).
+ * @param parent Parent window for the dialog.
+ * @return New chooser; caller runs and destroys it.
+ */
+GtkWidget *build_macro_export_save_chooser(GtkWindow *parent) {
+  return gtk_file_chooser_dialog_new(
+      _("Export macro"), parent,
+      GTK_FILE_CHOOSER_ACTION_SAVE, dgettext("gtk30", "_Cancel"),
+      GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Save"), GTK_RESPONSE_OK,
+      nullptr);
+}
+
+/**
+ * @brief Create a modal open file chooser for importing macros (GTK stock button labels).
+ * @param parent Parent window for the dialog.
+ * @return New chooser; caller runs and destroys it.
+ */
+GtkWidget *build_macro_import_open_chooser(GtkWindow *parent) {
+  return gtk_file_chooser_dialog_new(
+      _("Import macro"), parent,
+      GTK_FILE_CHOOSER_ACTION_OPEN, dgettext("gtk30", "_Cancel"),
+      GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Open"), GTK_RESPONSE_OK,
+      nullptr);
+}
+
+} // namespace
+
+/**
+ * @brief Capture view and settings references used by GTK callbacks.
+ */
 SetupController::SetupController(SetupView &view, SettingsStore &store)
     : m_view(view), m_store(store) {}
 
-// Initialize the controller. This method is currently a placeholder
-// for any future setup-specific initialization.
+/** @brief Placeholder hook for deferred controller-wide startup wiring. */
 void SetupController::init() {}
 
-// Handle key press events in the main setup window.
-// @param widget widget receiving the key event
-// @param event key event details
-// @return TRUE when the event is handled and should not be propagated
-//         FALSE otherwise
+/**
+ * @brief Quit application from main window Escape key routing.
+ *
+ * Progression: if Escape -> terminate GTK loop and consume event.
+ */
 gboolean SetupController::handleMainWindowKeyPress(GtkWidget *widget,
                                                    GdkEventKey *event) {
-  if (event->keyval == GDK_KEY_Escape) {
+  (void)widget;
+  const bool pressedEscape = (event->keyval == GDK_KEY_Escape);
+  if (pressedEscape) {
     gtk_main_quit();
     return true;
   }
   return false;
 }
 
-// Handle the main window being destroyed by terminating the GTK main loop.
+/** @brief End GTK main loop when the main window is destroyed. */
 void SetupController::handleMainWindowDestroy() { gtk_main_quit(); }
 
-// Handle the close button being pressed by terminating the GTK main loop.
+/** @brief End GTK main loop when the user closes via Close button. */
 void SetupController::handleBtnClose() { gtk_main_quit(); }
 
-// Update the stored configuration for the selected combo box value.
-// @param cbb combo box containing the selected value
-// @param key configuration key to update
+/**
+ * @brief Push the active combo row's string into GSettings under `key`.
+ * @param cbb Source combo box (column 0 holds id string).
+ * @param key GSettings key (see `CONFIG_*` ids).
+ *
+ * Progression: read active iter -> `ibus_unikey_config_set_string` -> release
+ * `GValue`.
+ */
 void SetupController::cbbConfigUpdate(GtkComboBox *cbb, const char *key) {
-  GValue val = {0};
-  GtkTreeIter iter;
-  GtkTreeModel *model;
+  GValue val = {0};    // initialize the value to 0
+  GtkTreeIter iter;    // initialize the iterator
+  GtkTreeModel *model; // initialize the model
 
-  model = gtk_combo_box_get_model(cbb);
-  gtk_combo_box_get_active_iter(cbb, &iter);
-  gtk_tree_model_get_value(model, &iter, 0, &val);
+  model = gtk_combo_box_get_model(cbb); // get the model from the combo box
+  gtk_combo_box_get_active_iter(
+      cbb, &iter); // get the active iterator from the combo box
+  gtk_tree_model_get_value(model, &iter, 0,
+                           &val); // get the value from the model
 
-  ibus_unikey_config_set_string(key, g_value_get_string(&val));
+  ibus_unikey_config_set_string(
+      key, g_value_get_string(&val)); // set the string to the key
 
-  g_value_unset(&val);
+  g_value_unset(&val); // unset the value
 }
 
-// Handle changes to the input method selection.
-// @param cbb combo box containing input method choices
+/** @brief Mirror input-method combo changes into config. */
 void SetupController::handleInputMethodChanged(GtkComboBox *cbb) {
   cbbConfigUpdate(cbb, CONFIG_INPUTMETHOD);
 }
 
-// Handle changes to the output charset selection.
-// @param cbb combo box containing output charset choices
+/** @brief Mirror output-charset combo changes into config. */
 void SetupController::handleOutputCharsetChanged(GtkComboBox *cbb) {
   cbbConfigUpdate(cbb, CONFIG_OUTPUTCHARSET);
 }
 
-// Initialize the input method combo box from stored settings.
-// @param cbb combo box containing input method choices
+/** @brief Load initial input-method selection from settings. */
 void SetupController::handleInputMethodRealize(GtkComboBox *cbb) {
   cbbConfigSetActive(cbb, CONFIG_INPUTMETHOD);
 }
 
-// Initialize the output charset combo box from stored settings.
-// @param cbb combo box containing output charset choices
+/** @brief Load initial output-charset selection from settings. */
 void SetupController::handleOutputCharsetRealize(GtkComboBox *cbb) {
   cbbConfigSetActive(cbb, CONFIG_OUTPUTCHARSET);
 }
 
-// Set the active combo box item based on a stored configuration value.
-// @param cbb combo box to update
-// @param key configuration key to read the value from
+/**
+ * @brief Select combo row whose column-0 id equals the string stored for `key`.
+ * @param cbb Combo box using column 0 as the config id.
+ * @param key GSettings (or config backend) key producing a heap string via `ibus_unikey_config_get_string`.
+ *
+ * Progression:
+ * 1. Read stored id; abort when config has no string value.
+ * 2. `activateComboBoxRowIfStoredIdMatches`; `g_free` the config string.
+ */
 void SetupController::cbbConfigSetActive(GtkComboBox *cbb, const char *key) {
-  GValue val = {0};
-  GtkTreeIter iter;
-  GtkTreeModel *model;
-
-  gchar *im;
-  if (!ibus_unikey_config_get_string(key, &im)) {
+  gchar *stored_row_id = nullptr;
+  const bool have_config_label =
+      ibus_unikey_config_get_string(key, &stored_row_id);
+  if (!have_config_label)
     return;
-  }
 
-  model = gtk_combo_box_get_model(cbb);
-  gtk_tree_model_get_iter_first(model, &iter);
+  activateComboBoxRowIfStoredIdMatches(cbb, stored_row_id);
+  g_free(stored_row_id);
+}
+
+/**
+ * @brief Activate the first combo row whose column-0 id string matches the config value.
+ * @param cbb Combo box whose model column 0 stores option ids.
+ * @param expected_row_id Stored config id to match (NUL-terminated).
+ *
+ * Progression:
+ * 1. Require at least one model row (empty model is a no-op).
+ * 2. Walk rows; compare column 0 to `expected_row_id` with null-safe strcmp.
+ * 3. On first match, set active iter and return.
+ */
+void SetupController::activateComboBoxRowIfStoredIdMatches(
+    GtkComboBox *cbb,
+    const gchar *expected_row_id) {
+  GtkTreeModel *model = gtk_combo_box_get_model(cbb);
+  GtkTreeIter iter;
+
+  const bool model_has_at_least_one_row =
+      gtk_tree_model_get_iter_first(model, &iter);
+  if (!model_has_at_least_one_row)
+    return;
+
+  GValue val = {0};
   do {
     gtk_tree_model_get_value(model, &iter, 0, &val);
-    if (strcmp(im, g_value_get_string(&val)) == 0) {
+    const gchar *cell_id = g_value_get_string(&val);
+    const bool row_matches_stored_id =
+        (cell_id != NULL && strcmp(expected_row_id, cell_id) == 0);
+    if (row_matches_stored_id) {
       gtk_combo_box_set_active_iter(cbb, &iter);
       g_value_unset(&val);
-      break;
+      return;
     }
     g_value_unset(&val);
   } while (gtk_tree_model_iter_next(model, &iter));
-
-  g_free(im);
 }
 
-// Persist a GUI toggle setting to configuration storage.
-// @param btn toggle button for the setting
+/**
+ * @brief Persist a toggle-derived boolean to GSettings using widget name
+ * `cfg_<key>`.
+ *
+ * Progression: read widget base name strip `cfg_` prefix -> toggle state ->
+ * persist.
+ */
 void SetupController::handleSettingToggled(GtkToggleButton *btn) {
+
+  // get the key from the widget
   const gchar *key = gtk_widget_get_name(GTK_WIDGET(btn));
   key = key + 4; // skip "cfg_"
 
+  // get the state of the toggle button
   gboolean b = gtk_toggle_button_get_active(btn);
+
+  // set the boolean to the key
   ibus_unikey_config_set_boolean(key, b);
 }
 
-// Initialize a GUI toggle button from stored configuration.
-// @param btn toggle button for the setting
+/**
+ * @brief Initialise toggle active state when the widget is realised.
+ *
+ * Progression: resolve `cfg_` suffix key -> read boolean if present ->
+ * `gtk_toggle_button_set_active`.
+ */
 void SetupController::handleSettingRealize(GtkToggleButton *btn) {
+
+  // get the key from the widget
   const gchar *key = gtk_widget_get_name(GTK_WIDGET(btn));
   key = key + 4; // skip "cfg_"
 
+  // get the boolean from the key
   gboolean b;
-  if (ibus_unikey_config_get_boolean(key, &b)) {
+
+  const bool loadedStoredToggle =
+      ibus_unikey_config_get_boolean(key, &b);
+  if (loadedStoredToggle) {
     gtk_toggle_button_set_active(btn, b);
   }
 }
 
-// Show the macro editor dialog and save macro definitions if confirmed.
-void SetupController::handleMacroEdit() { // Progression:
-  // 1) load engine macros from disk,
-  // 2) convert/store as canonical UI rows,
-  // 3) run dialog with default/search rendering,
-  // 4) on Save, rebuild engine table from canonical rows and persist.
+/**
+ * @brief Open macro dialog, load macros from disk, run modal workflow, save on OK.
+ *
+ * Progression:
+ * 1. Resolve path via `get_macro_file()` and load into `CMacroTable`.
+ * 2. `applyLoadedMacroTableToDialogUi` syncs list + `m_defaultEntries`.
+ * 3. Show/present dialog; on `GTK_RESPONSE_OK`, `commitMacroEditDialogSave`.
+ * 4. Always `g_free` the macro file path heap string from (1).
+ */
+void SetupController::handleMacroEdit() {
   gchar *macrofile = get_macro_file();
 
   CMacroTable macro;
   macro.init();
   macro.loadFromFile(macrofile);
 
-  auto store = GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
-  unikey_macro_to_store(&macro, store);
-  loadMacroRowsFromStore(store);
-  ensureSortColumns();
-  clearSearchMode();
-  renderActiveMacroRows();
+  GtkListStore *store =
+      GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
+  applyLoadedMacroTableToDialogUi(&macro, store);
 
   gtk_widget_show_all(m_view.getMacroDialog());
   gtk_window_present(GTK_WINDOW(m_view.getMacroDialog()));
 
-  int ret = gtk_dialog_run(GTK_DIALOG(m_view.getMacroDialog()));
-  if (ret == GTK_RESPONSE_OK) {
-    gtk_list_store_clear(store);
-    for (size_t i = 0; i < m_defaultEntries.size(); i++) {
-      GtkTreeIter iter;
-      gtk_list_store_append(store, &iter);
-      gtk_list_store_set(store, &iter, COL_KEY, m_defaultEntries[i].key.c_str(),
-                         COL_VALUE, m_defaultEntries[i].value.c_str(),
-                         COL_CANONICAL_INDEX, (int)i, -1);
-    }
-
-    UnikeyMacroTableFillResult sync = unikey_store_to_macro(store, &macro);
-    if (sync.failed > 0) {
-      run_macro_error_dialog(
-          GTK_WINDOW(m_view.getMacroDialog()), &macro,
-          _("Not all macros could be saved. The macro file was not written."));
-    } else {
-      GFile *f = g_file_get_parent(g_file_new_for_path(macrofile));
-      if (g_file_query_exists(f, NULL) == FALSE) {
-        g_file_make_directory_with_parents(f, NULL, NULL);
-      }
-      g_object_unref(f);
-
-      if (!macro.writeToFile(macrofile)) {
-        run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro,
-                               _("Could not write the macro file."));
-      }
-    }
-  }
+  const int ret = gtk_dialog_run(GTK_DIALOG(m_view.getMacroDialog()));
+  const bool userCommittedMacroDialog = (ret == GTK_RESPONSE_OK);
+  if (userCommittedMacroDialog)
+    commitMacroEditDialogSave(macrofile, store, &macro);
 
   g_free(macrofile);
 }
 
-// Hide the macro dialog and report the delete event handled.
-// @return TRUE always to indicate event handling
+/**
+ * @brief Push a loaded engine table into the GTK list store and refresh controller state.
+ * @param macro Table already filled e.g. from `loadFromFile`.
+ * @param store Macro dialog `GtkListStore` bound to the tree view.
+ *
+ * Progression: `unikey_macro_to_store` → `loadMacroRowsFromStore` → sort columns →
+ * `clearSearchMode` → `renderActiveMacroRows`.
+ */
+void SetupController::applyLoadedMacroTableToDialogUi(CMacroTable *macro,
+                                                       GtkListStore *store) {
+  unikey_macro_to_store(macro, store);
+  loadMacroRowsFromStore(store);
+  ensureSortColumns();
+  clearSearchMode();
+  renderActiveMacroRows();
+}
+
+/**
+ * @brief Rebuild the GTK list from `m_defaultEntries` alone (before `unikey_store_to_macro`).
+ * @param store Target list store (cleared first).
+ *
+ * Progression:
+ * 1. `gtk_list_store_clear`.
+ * 2. One `append_macro_list_row` per canonical row (no trailing placeholder row here).
+ */
+void SetupController::repopulateMacroStoreFromDefaultEntriesForSave(
+    GtkListStore *store) {
+  gtk_list_store_clear(store);
+  for (size_t i = 0; i < m_defaultEntries.size(); i++) {
+    const MacroUiRow &row = m_defaultEntries[i];
+    append_macro_list_row(store, row.key.c_str(), row.value.c_str(),
+                          static_cast<int>(i));
+  }
+}
+
+/**
+ * @brief Persist macro dialog edits: list → engine table, mkdir parent if needed, write file.
+ * @param macro_path Target macro file path (UTF-8, not freed here).
+ * @param store List store rebuilt from `m_defaultEntries` for conversion.
+ * @param macro Engine table receiving `unikey_store_to_macro` output.
+ *
+ * Progression:
+ * 1. `repopulateMacroStoreFromDefaultEntriesForSave` then `unikey_store_to_macro`.
+ * 2. On conversion failure: error dialog and return.
+ * 3. Ensure parent directory exists when resolvable via `GFile`.
+ * 4. `writeToFile`; on failure show error dialog.
+ */
+void SetupController::commitMacroEditDialogSave(const gchar *macro_path,
+                                                GtkListStore *store,
+                                                CMacroTable *macro) {
+  repopulateMacroStoreFromDefaultEntriesForSave(store);
+
+  UnikeyMacroTableFillResult sync = unikey_store_to_macro(store, macro);
+  const bool macroConversionHadFailures = (sync.failed > 0);
+  GtkWindow *parentWin = GTK_WINDOW(m_view.getMacroDialog());
+
+  if (macroConversionHadFailures) {
+    run_macro_error_dialog(parentWin, macro,
+                           _("Not all macros could be saved. The macro file was not written."));
+    return;
+  }
+
+  GFile *pathObj = g_file_new_for_path(macro_path);
+  GFile *parentDir = g_file_get_parent(pathObj);
+  g_object_unref(pathObj);
+
+  const bool parentDirResolved = (parentDir != nullptr);
+  if (parentDirResolved) {
+    const bool parentDirExists =
+        (g_file_query_exists(parentDir, nullptr) != FALSE);
+    if (!parentDirExists)
+      g_file_make_directory_with_parents(parentDir, nullptr, nullptr);
+    g_object_unref(parentDir);
+  }
+
+  const bool wroteMacroFile = macro->writeToFile(macro_path);
+  if (!wroteMacroFile) {
+    run_macro_error_dialog(parentWin, macro,
+                           _("Could not write the macro file."));
+  }
+}
+
+/**
+ * @brief Hide macro dialog on window manager delete; treat as handled.
+ */
 gboolean SetupController::handleMacroDialogDelete() {
+  // hide the macro dialog
   gtk_widget_hide(m_view.getMacroDialog());
+  // return True
   return true;
 }
 
-// Hide the macro dialog without action.
+/**
+ * @brief Hide macro dialog from explicit cancel/close without extra side
+ * effects.
+ */
 void SetupController::handleMacroDialogHide() {
+  // hide the macro dialog
   gtk_widget_hide(m_view.getMacroDialog());
 }
 
-// Handle editing a macro key cell.
-// @param celltext cell renderer for the edited text cell
-// @param string_path string path to the edited row
-// @param newkey new key text entered by user
+/**
+ * @brief Reserved for inline cell editing; currently unused (no-op parameters).
+ */
 void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext,
                                           const gchar *string_path,
                                           const gchar *newkey) {
@@ -250,10 +557,9 @@ void SetupController::handleCellKeyEdited(GtkCellRendererText *celltext,
   (void)newkey;
 }
 
-// Handle editing a macro value cell.
-// @param celltext cell renderer for the edited text cell
-// @param string_path string path to the edited row
-// @param newvalue new value text entered by user
+/**
+ * @brief Reserved for inline cell editing; currently unused (no-op parameters).
+ */
 void SetupController::handleCellValueEdited(GtkCellRendererText *celltext,
                                             const gchar *string_path,
                                             const gchar *newvalue) {
@@ -262,69 +568,118 @@ void SetupController::handleCellValueEdited(GtkCellRendererText *celltext,
   (void)newvalue;
 }
 
-void SetupController::handleMacroAdd() {
-  // Progression: open editor in add mode -> append canonical row on Save ->
-  // rerender list.
-  openMacroEditor(true, -1);
-}
+/**
+ * @brief Start add flow in the dedicated non-modal macro editor.
+ *
+ * Progression: `openMacroEditor(true, -1)` -> row append on successful save
+ * path inside editor.
+ */
+void SetupController::handleMacroAdd() { openMacroEditor(true, -1); }
 
+/**
+ * @brief Start edit flow for the currently selected canonical index.
+ *
+ * Progression: resolve `selectedCanonicalIndex` bounds-check ->
+ * `openMacroEditor(false, idx)`.
+ */
 void SetupController::handleMacroEditSelected() {
-  // Progression: resolve selected canonical row -> open editor in edit mode.
+
+  // get the selected canonical index
   const int idx = selectedCanonicalIndex();
-  if (idx < 0 || idx >= (int)m_defaultEntries.size())
+  const bool selectedRowInCanonicalRange =
+      (idx >= 0 && idx < static_cast<int>(m_defaultEntries.size()));
+  if (!selectedRowInCanonicalRange)
     return;
   openMacroEditor(false, idx);
 }
 
-// Remove the currently selected macro entry if present.
+/**
+ * @brief Remove selected canonical row and refresh search projection if active.
+ *
+ * Progression: resolve index -> erase from `m_defaultEntries` -> optional
+ * `refreshSearchProjection` -> `renderActiveMacroRows`.
+ */
 void SetupController::handleMacroDel() {
-  // Progression: map selection -> remove canonical row -> refresh search
-  // projection when active -> rerender.
+
+  // get the selected canonical index
   const int idx = selectedCanonicalIndex();
-  if (idx < 0 || idx >= (int)m_defaultEntries.size())
+  const bool selectedRowInCanonicalRange =
+      (idx >= 0 && idx < static_cast<int>(m_defaultEntries.size()));
+  if (!selectedRowInCanonicalRange)
     return;
   m_defaultEntries.erase(m_defaultEntries.begin() + idx);
-  if (isSearchMode())
+  const bool searchProjectionStaleAfterDelete = isSearchMode();
+  if (searchProjectionStaleAfterDelete)
     refreshSearchProjection();
+  // render the active macro rows
   renderActiveMacroRows();
 }
 
-// Clear all macro entries and restore the empty-placeholder row.
+/**
+ * @brief Clear-all or exit search depending on `m_searchMode`.
+ *
+ * Progression:
+ * - Search mode: `clearSearchMode` rerender (canonical data untouched).
+ * - Default mode: confirm dialog then erase all canonical rows on OK.
+ */
 void SetupController::handleMacroClear() {
-  // Mode-specific clear policy:
-  // - Search mode: clear search only (never delete canonical data),
-  // - Default mode: confirm then clear all canonical entries.
-  if (isSearchMode()) {
+  const bool actingInsideSearchHitsView = isSearchMode();
+  if (actingInsideSearchHitsView) {
+    // clear the search mode
     clearSearchMode();
+    // render the active macro rows
     renderActiveMacroRows();
+    // return
     return;
   }
+  // show the confirm and clear all dialog
   showConfirmAndClearAll();
 }
 
+/**
+ * @brief Search entry "activate" / committed text: rebuild projection from
+ * query.
+ *
+ * Progression: ignore if `m_syncingSearchText` -> `refreshSearchProjection` ->
+ * `renderActiveMacroRows`.
+ */
 void SetupController::handleMacroSearchActivate() {
-  // Progression: ignore programmatic entry updates -> rebuild search projection
-  // -> rerender active rows.
-  if (m_syncingSearchText)
+  const bool ignoreSearchWhileSyncingUiTextField = m_syncingSearchText;
+  if (ignoreSearchWhileSyncingUiTextField)
     return;
+  // refresh the search projection
   refreshSearchProjection();
+  // render the active macro rows
   renderActiveMacroRows();
 }
 
+/**
+ * @brief User pressed Return-to-default-list control; leave search without
+ * deleting data.
+ */
 void SetupController::handleMacroReturnToDefaultList() {
-  // Explicit search-list exit action from dedicated Return button.
+  // clear the search mode
   clearSearchMode();
+  // render the active macro rows
   renderActiveMacroRows();
 }
 
+/**
+ * @brief Keyboard routing on the search entry (Escape exits search in default
+ * mode).
+ * @return TRUE when the key is consumed.
+ */
 gboolean SetupController::handleMacroSearchKeyPress(GtkWidget *widget,
                                                     GdkEventKey *event) {
   (void)widget;
-  if (isSearchMode() && event->keyval == GDK_KEY_Escape) {
+  const bool pressedEscape = (event->keyval == GDK_KEY_Escape);
+  const bool ignoreEscapeInActiveSearchHitList =
+      (isSearchMode() && pressedEscape);
+  if (ignoreEscapeInActiveSearchHitList) {
     // Esc is no longer used to leave search-list mode.
     return TRUE;
   }
-  if (event->keyval == GDK_KEY_Escape) {
+  if (pressedEscape) {
     clearSearchMode();
     renderActiveMacroRows();
     return TRUE;
@@ -332,230 +687,355 @@ gboolean SetupController::handleMacroSearchKeyPress(GtkWidget *widget,
   return FALSE;
 }
 
+/**
+ * @brief Tree row activation (double-click / Enter) opens edit dialog for
+ * selection.
+ */
 void SetupController::handleMacroTreeRowActivated(GtkTreePath *path) {
-  // Double-click/Enter on row opens dedicated editor for selected canonical
-  // row.
   (void)path;
   handleMacroEditSelected();
 }
 
-// Show a file chooser to import macro definitions from disk.
+/**
+ * @brief Merge macros from user-selected UTF-8 / legacy text via `CMacroTable`
+ * parser.
+ *
+ * Open chooser from `build_macro_import_open_chooser`; OK path merges via
+ * `commitMacroImportMergeFromPath`.
+ */
 void SetupController::handleMacroImport() {
-  // Progression:
-  // 1) load imported file via engine table parser,
-  // 2) append imported rows into canonical UI list,
-  // 3) recompute search projection when needed,
-  // 4) rerender active table view.
-  auto file = gtk_file_chooser_dialog_new(
-      _("Import macro"), GTK_WINDOW(m_view.getMacroDialog()),
-      GTK_FILE_CHOOSER_ACTION_OPEN, dgettext("gtk30", "_Cancel"),
-      GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Open"), GTK_RESPONSE_OK, NULL);
-
-  if (gtk_dialog_run(GTK_DIALOG(file)) == GTK_RESPONSE_OK) {
-
-    auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
-    CMacroTable macro;
-    macro.init();
-    if (!macro.loadFromFile(fn)) {
-      run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro,
-                             _("The macro file could not be fully imported."));
-    }
-    g_free(fn);
-
-    auto tmp = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
-    list_store_append(tmp, &macro);
-
-    GtkTreeIter iter;
-    gboolean b = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(tmp), &iter);
-    while (b == TRUE) {
-      gchar *key = NULL;
-      gchar *value = NULL;
-      gtk_tree_model_get(GTK_TREE_MODEL(tmp), &iter, COL_KEY, &key, COL_VALUE,
-                         &value, -1);
-      m_defaultEntries.push_back(
-          MacroUiRow{key ? key : "", value ? value : ""});
-      g_free(key);
-      g_free(value);
-      b = gtk_tree_model_iter_next(GTK_TREE_MODEL(tmp), &iter);
-    }
-    g_object_unref(tmp);
-
-    if (isSearchMode())
-      refreshSearchProjection();
-    renderActiveMacroRows();
+  GtkWidget *chooser =
+      build_macro_import_open_chooser(GTK_WINDOW(m_view.getMacroDialog()));
+  const bool userChoseImportPath =
+      (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_OK);
+  if (userChoseImportPath) {
+    gchar *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
+    commitMacroImportMergeFromPath(path);
   }
-
-  gtk_widget_destroy(file);
+  gtk_widget_destroy(chooser);
 }
 
-// Show a file chooser to export macro definitions to disk.
+/**
+ * @brief Load a macro file into a scratch engine table and merge rows into `m_defaultEntries`.
+ * @param path_owned Heap path from the file chooser; always `g_free`d here.
+ *
+ * Progression:
+ * 1. `loadFromFile` into temporary `CMacroTable`; warn on partial load.
+ * 2. Drain scratch `GtkListStore` rows into `m_defaultEntries`.
+ * 3. If search mode active, `refreshSearchProjection`; always `renderActiveMacroRows`.
+ */
+void SetupController::commitMacroImportMergeFromPath(gchar *path_owned) {
+  CMacroTable macro;
+  macro.init();
+  const bool importedAllRows = macro.loadFromFile(path_owned);
+  g_free(path_owned);
+
+  if (!importedAllRows) {
+    run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro,
+                           _("The macro file could not be loaded."));
+  }
+
+  GtkListStore *tmp =
+      gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
+  list_store_append(tmp, &macro);
+  GtkTreeIter iter;
+  gboolean iterWalkImports =
+      gtk_tree_model_get_iter_first(GTK_TREE_MODEL(tmp), &iter);
+  while (iterWalkImports == TRUE) {
+    gchar *key = NULL;
+    gchar *value = NULL;
+    gtk_tree_model_get(GTK_TREE_MODEL(tmp), &iter, COL_KEY, &key, COL_VALUE,
+                       &value, -1);
+    MacroUiRow row;
+    row.key = key ? key : "";
+    row.value = value ? value : "";
+    refreshMacroUiRowSearchFoldCaches(row);
+    m_defaultEntries.push_back(std::move(row));
+    g_free(key);
+    g_free(value);
+    iterWalkImports =
+        gtk_tree_model_iter_next(GTK_TREE_MODEL(tmp), &iter);
+  }
+  g_object_unref(tmp);
+
+  const bool needToRefreshSearchHitsAfterImport = isSearchMode();
+  if (needToRefreshSearchHitsAfterImport)
+    refreshSearchProjection();
+  renderActiveMacroRows();
+}
+
+/**
+ * @brief Serialize current tree model to `CMacroTable` and write user path.
+ *
+ * Modal save chooser from `build_macro_export_save_chooser`; on OK delegates
+ * serialization and I/O to `commitMacroExportToPath` (frees chosen path).
+ */
 void SetupController::handleMacroExport() {
-  // Progression: convert active UI model -> engine table -> write selected
-  // file.
-  auto file = gtk_file_chooser_dialog_new(
-      _("Export macro"), GTK_WINDOW(m_view.getMacroDialog()),
-      GTK_FILE_CHOOSER_ACTION_SAVE, dgettext("gtk30", "_Cancel"),
-      GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Save"), GTK_RESPONSE_OK, NULL);
+  GtkWidget *chooser =
+      build_macro_export_save_chooser(GTK_WINDOW(m_view.getMacroDialog()));
+  const bool userChoseExportPath =
+      (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_OK);
+  if (userChoseExportPath) {
+    gchar *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
+    commitMacroExportToPath(path);
+  }
+  gtk_widget_destroy(chooser);
+}
 
-  if (gtk_dialog_run(GTK_DIALOG(file)) == GTK_RESPONSE_OK) {
-    CMacroTable macro;
-    macro.init();
+/**
+ * @brief Fill `CMacroTable` from the macro tree model and write the export path.
+ * @param path_owned Heap path from the save chooser; always `g_free`d here.
+ *
+ * Progression:
+ * 1. `unikey_gtk_model_fill_macro_table` from current tree model.
+ * 2. Error dialog when fill reports failures.
+ * 3. Else `writeToFile`; error dialog when write fails.
+ */
+void SetupController::commitMacroExportToPath(gchar *path_owned) {
+  CMacroTable macro;
+  macro.init();
+  GtkTreeModel *model =
+      GTK_TREE_MODEL(gtk_tree_view_get_model(m_view.getMacroTree()));
+  UnikeyMacroTableFillResult fill =
+      unikey_gtk_model_fill_macro_table(model, &macro, FALSE);
+  GtkWindow *parentWin = GTK_WINDOW(m_view.getMacroDialog());
 
-    auto model = GTK_TREE_MODEL(gtk_tree_view_get_model(m_view.getMacroTree()));
-    UnikeyMacroTableFillResult fill =
-        unikey_gtk_model_fill_macro_table(model, &macro, FALSE);
-
-    auto fn = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file));
-    if (fill.failed > 0) {
-      run_macro_error_dialog(
-          GTK_WINDOW(m_view.getMacroDialog()), &macro,
-          _("Not all macros could be written to the export file."));
-    } else if (!macro.writeToFile(fn)) {
-      run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro,
+  const bool modelToTableHadFailures = (fill.failed > 0);
+  if (modelToTableHadFailures) {
+    run_macro_error_dialog(
+        parentWin, &macro,
+        _("Not all macros could be written to the export file."));
+  } else {
+    const bool wroteExportFile = macro.writeToFile(path_owned);
+    if (!wroteExportFile) {
+      run_macro_error_dialog(parentWin, &macro,
                              _("Could not write the export file."));
     }
-    g_free(fn);
   }
-
-  gtk_widget_destroy(file);
+  g_free(path_owned);
 }
 
+/** @brief Underlying `GtkListStore` bound to the macro tree view. */
 GtkListStore *SetupController::macroStore() const {
   return GTK_LIST_STORE(gtk_tree_view_get_model(m_view.getMacroTree()));
 }
 
+/** @brief Tree selection handle for the macro view (read selected row). */
 GtkTreeSelection *SetupController::macroSelection() const {
   return gtk_tree_view_get_selection(m_view.getMacroTree());
 }
 
+/** @brief True when search projection (subset of indices) is active. */
 bool SetupController::isSearchMode() const { return m_searchMode; }
 
+/** @brief Raw UTF-8 query from the search entry (empty string if null). */
 std::string SetupController::currentSearchQuery() const {
   const gchar *text = gtk_entry_get_text(m_view.getMacroSearchEntry());
   return text ? text : "";
 }
 
+/**
+ * @brief Map selected GTK row to `m_defaultEntries` index via
+ * `COL_CANONICAL_INDEX`.
+ * @return Canonical index or -1 when nothing selected.
+ */
 int SetupController::selectedCanonicalIndex() const {
-  // Every rendered row carries COL_CANONICAL_INDEX for default/search unified
-  // edits.
   GtkTreeIter iter;
-  if (!gtk_tree_selection_get_selected(macroSelection(), NULL, &iter))
+  const bool macroRowSelected =
+      gtk_tree_selection_get_selected(macroSelection(), NULL, &iter);
+  if (!macroRowSelected)
     return -1;
+  // get the canonical index from the iterator
   int idx = -1;
+  // get the canonical index from the iterator
   gtk_tree_model_get(GTK_TREE_MODEL(macroStore()), &iter, COL_CANONICAL_INDEX,
                      &idx, -1);
+  // return the canonical index
   return idx;
 }
 
+/**
+ * @brief Substring match using cached `key_folded`/`value_folded` vs folded query.
+ */
 bool SetupController::rowMatchesQuery(const MacroUiRow &row,
                                       const std::string &queryFolded) const {
-  const std::string keyFold = utf8_casefold_string(row.key.c_str());
-  const std::string valueFold = utf8_casefold_string(row.value.c_str());
-  return keyFold.find(queryFolded) != std::string::npos ||
-         valueFold.find(queryFolded) != std::string::npos;
+  const bool keyContainsQuery =
+      (row.key_folded.find(queryFolded) != std::string::npos);
+  const bool valueContainsQuery =
+      (row.value_folded.find(queryFolded) != std::string::npos);
+  return keyContainsQuery || valueContainsQuery;
 }
 
+void SetupController::refreshMacroUiRowSearchFoldCaches(MacroUiRow &row) {
+  row.key_folded = utf8_casefold_string(row.key.c_str());
+  row.value_folded = utf8_casefold_string(row.value.c_str());
+}
+
+/**
+ * @brief One-time wiring of GTK sort-column ids to `COL_KEY` / `COL_VALUE`.
+ *
+ * Progression: if already configured noop else fetch columns attach ids free
+ * list flag true.
+ */
 void SetupController::ensureSortColumns() {
-  // Configure column sort IDs once; tree sort applies to whichever list is
-  // rendered.
   if (m_sortConfigured)
     return;
   auto cols = gtk_tree_view_get_columns(m_view.getMacroTree());
-  if (cols != NULL) {
+  const bool gotColumnListFromTree = (cols != NULL);
+  if (gotColumnListFromTree) {
     GtkTreeViewColumn *word = GTK_TREE_VIEW_COLUMN(g_list_nth_data(cols, 0));
     GtkTreeViewColumn *replace = GTK_TREE_VIEW_COLUMN(g_list_nth_data(cols, 1));
-    if (word)
+    const bool replaceColumnResolved = (replace != nullptr);
+    const bool triggerColumnResolved = (word != nullptr);
+    if (triggerColumnResolved)
       gtk_tree_view_column_set_sort_column_id(word, COL_KEY);
-    if (replace)
+    if (replaceColumnResolved)
       gtk_tree_view_column_set_sort_column_id(replace, COL_VALUE);
   }
+  // free the columns
   g_list_free(cols);
+  // set the sort configured to true
   m_sortConfigured = true;
 }
 
+/**
+ * @brief Parse `store` rows into `m_defaultEntries`, skipping `(null)`
+ * placeholders.
+ *
+ * Progression: clear canonical walk iter skip `STR_NULL_ITEM` keys push
+ * MacroUiRow.
+ */
 void SetupController::loadMacroRowsFromStore(GtkListStore *store) {
-  // Rehydrate canonical rows from GtkListStore, skipping placeholder row
-  // markers.
   m_defaultEntries.clear();
   GtkTreeIter iter;
-  gboolean b = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
-  while (b == TRUE) {
-    gchar *key = NULL;
-    gchar *value = NULL;
+  gboolean iterWalkValid =
+      gtk_tree_model_get_iter_first(GTK_TREE_MODEL(store), &iter);
+  while (iterWalkValid == TRUE) {
+    gchar *key = NULL;   // initialize the key
+    gchar *value = NULL; // initialize the value
+    // get the key and value from the store
     gtk_tree_model_get(GTK_TREE_MODEL(store), &iter, COL_KEY, &key, COL_VALUE,
                        &value, -1);
+    // check if the key is a placeholder
     const bool isPlaceholder = (key != NULL && strcmp(key, STR_NULL_ITEM) == 0);
-    if (!isPlaceholder)
-      m_defaultEntries.push_back(
-          MacroUiRow{key ? key : "", value ? value : ""});
+    // if the key is not a placeholder push the key and value to the default
+    // entries
+    if (!isPlaceholder) {
+      MacroUiRow row;
+      row.key = key ? key : "";
+      row.value = value ? value : "";
+      refreshMacroUiRowSearchFoldCaches(row);
+      m_defaultEntries.push_back(std::move(row));
+    }
+    // free the key and value
     g_free(key);
     g_free(value);
-    b = gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &iter);
+    iterWalkValid = gtk_tree_model_iter_next(GTK_TREE_MODEL(store), &iter);
   }
 }
 
+/**
+ * @brief Fill `store` from the full canonical list plus trailing null placeholder row.
+ * @param store Cleared/populated macro list store for default (non-search) view.
+ *
+ * Progression:
+ * 1. Append each `m_defaultEntries` row with stable canonical index via `append_macro_list_row`.
+ * 2. `list_store_add_null_item` sentinel row as in UI convention.
+ */
+void SetupController::renderFullCanonicalMacroListInto(GtkListStore *store) {
+  for (size_t i = 0; i < m_defaultEntries.size(); i++) {
+    const MacroUiRow &row = m_defaultEntries[i];
+    append_macro_list_row(store, row.key.c_str(), row.value.c_str(),
+                          static_cast<int>(i));
+  }
+  list_store_add_null_item(store);
+}
+
+/**
+ * @brief Fill `store` from `m_searchedIndices` projection (skipped indices are stale).
+ * @param store Macro list store for search-hit view.
+ *
+ * Progression:
+ * 1. For each hit index in range of `m_defaultEntries`, append that canonical row with its index.
+ * 2. Out-of-range indices are ignored (robust against desync).
+ */
+void SetupController::renderSearchProjectionInto(GtkListStore *store) {
+  for (size_t i = 0; i < m_searchedIndices.size(); i++) {
+    const int cidx = m_searchedIndices[i];
+    const bool projectionRowMapsToStoredMacro =
+        (cidx >= 0 &&
+         cidx < static_cast<int>(m_defaultEntries.size()));
+    if (!projectionRowMapsToStoredMacro)
+      continue;
+    const MacroUiRow &row = m_defaultEntries[static_cast<size_t>(cidx)];
+    append_macro_list_row(store, row.key.c_str(), row.value.c_str(), cidx);
+  }
+}
+
+/**
+ * @brief Refresh list store from either full canonical list or search indices.
+ *
+ * Delegates filling the store to `renderFullCanonicalMacroListInto` or
+ * `renderSearchProjectionInto`, then updates return-button visibility.
+ */
 void SetupController::renderActiveMacroRows() {
-  // Render from canonical rows:
-  // - default mode: all canonical rows in table order,
-  // - search mode: projection rows by canonical indices.
-  auto store = macroStore();
+  GtkListStore *store = macroStore();
   gtk_list_store_clear(store);
 
-  if (!m_searchMode) {
-    for (size_t i = 0; i < m_defaultEntries.size(); i++) {
-      GtkTreeIter iter;
-      gtk_list_store_append(store, &iter);
-      gtk_list_store_set(store, &iter, COL_KEY, m_defaultEntries[i].key.c_str(),
-                         COL_VALUE, m_defaultEntries[i].value.c_str(),
-                         COL_CANONICAL_INDEX, (int)i, -1);
-    }
-  } else {
-    for (size_t i = 0; i < m_searchedIndices.size(); i++) {
-      const int cidx = m_searchedIndices[i];
-      if (cidx < 0 || cidx >= (int)m_defaultEntries.size())
-        continue;
-      GtkTreeIter iter;
-      gtk_list_store_append(store, &iter);
-      gtk_list_store_set(store, &iter, COL_KEY,
-                         m_defaultEntries[(size_t)cidx].key.c_str(), COL_VALUE,
-                         m_defaultEntries[(size_t)cidx].value.c_str(),
-                         COL_CANONICAL_INDEX, cidx, -1);
-    }
-  }
+  const bool displayingFullCanonicalMacroList = !m_searchMode;
+  if (displayingFullCanonicalMacroList)
+    renderFullCanonicalMacroListInto(store);
+  else
+    renderSearchProjectionInto(store);
+
   updateReturnButtonVisibility();
 }
 
+/**
+ * @brief Show Return-to-list whenever search projection mode is active (including zero hits).
+ *
+ * Hiding when `m_searchedIndices` is empty left users stuck after a no-hit query.
+ */
 void SetupController::updateReturnButtonVisibility() {
-  const bool showReturn = m_searchMode && !m_searchedIndices.empty();
-  if (showReturn)
-    gtk_widget_show(GTK_WIDGET(m_view.getMacroReturnButton()));
+  if (m_searchMode)
+    gtk_widget_show(GTK_WIDGET(m_view.getMacroReturnButton())); // show the return button
   else
-    gtk_widget_hide(GTK_WIDGET(m_view.getMacroReturnButton()));
+    gtk_widget_hide(GTK_WIDGET(m_view.getMacroReturnButton())); // hide the return button
 }
 
+/**
+ * @brief Rebuild `m_searchedIndices` from `currentSearchQuery` casefolded.
+ *
+ * Progression: read query fold if empty clear search mode else set
+ * `m_searchMode` scan `m_defaultEntries` with `rowMatchesQuery`.
+ */
 void SetupController::refreshSearchProjection() {
-  // Projection builder:
-  // 1) casefold query,
-  // 2) empty query exits search mode,
-  // 3) otherwise rebuild searched index vector from canonical rows.
+  // get the query from the current search query
   const std::string query = currentSearchQuery();
+  // fold the Query
   const std::string queryFolded = utf8_casefold_string(query.c_str());
-
-  if (queryFolded.empty()) {
+  const bool trimmedQueryProducesNoHits = queryFolded.empty();
+  if (trimmedQueryProducesNoHits) {
     clearSearchMode();
     return;
   }
 
-  m_searchMode = true;
-  m_searchedIndices.clear();
+  m_searchMode = true; // set the search mode to true
+  m_searchedIndices.clear(); // clear the searched indices
+  // for each default entry check if the row matches the query folded
   for (size_t i = 0; i < m_defaultEntries.size(); i++) {
-    if (rowMatchesQuery(m_defaultEntries[i], queryFolded))
+    const bool canonicalRowMatchesFoldedQuery =
+        rowMatchesQuery(m_defaultEntries[i], queryFolded);
+    if (canonicalRowMatchesFoldedQuery)
       m_searchedIndices.push_back((int)i);
   }
 }
 
+/**
+ * @brief Exit search mode: clear indices empty entry text (with re-entrancy
+ * guard).
+ */
 void SetupController::clearSearchMode() {
-  // Ensure search-list exit is explicit and non-destructive to canonical data.
   m_searchMode = false;
   m_searchedIndices.clear();
   m_syncingSearchText = true;
@@ -563,95 +1043,132 @@ void SetupController::clearSearchMode() {
   m_syncingSearchText = false;
 }
 
+/**
+ * @brief Programmatic search text used when leaving search or external sync.
+ */
 void SetupController::setSearchText(const char *text) {
-  // Guard to avoid firing search actions during programmatic entry updates.
   m_syncingSearchText = true;
   gtk_entry_set_text(m_view.getMacroSearchEntry(), text ? text : "");
   m_syncingSearchText = false;
 }
 
-bool SetupController::openMacroEditor(bool addMode, int canonicalIndex) {
-  // Non-modal dedicated editor (design requirement):
-  // 1) build dialog + Replace/With controls,
-  // 2) prefill in edit mode,
-  // 3) validate/apply into canonical rows on Save,
-  // 4) refresh active rendering.
-  GtkWidget *dialog = gtk_dialog_new_with_buttons(
-      addMode ? _("Add macro") : _("Edit macro"),
-      GTK_WINDOW(m_view.getMacroDialog()), GTK_DIALOG_DESTROY_WITH_PARENT,
-      _("_Close"), GTK_RESPONSE_CANCEL, _("_Save"), GTK_RESPONSE_OK, NULL);
-  gtk_window_set_modal(GTK_WINDOW(dialog), FALSE);
-
-  GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-  GtkWidget *grid = gtk_grid_new();
-  gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
-  gtk_grid_set_column_spacing(GTK_GRID(grid), 6);
-  gtk_container_set_border_width(GTK_CONTAINER(grid), 8);
-
-  GtkWidget *lblKey = gtk_label_new(_("Replace"));
-  gtk_widget_set_halign(lblKey, GTK_ALIGN_START);
-  GtkWidget *lblValue = gtk_label_new(_("With"));
-  gtk_widget_set_halign(lblValue, GTK_ALIGN_START);
-  GtkWidget *entryKey = gtk_entry_new();
-  GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
-  gtk_widget_set_size_request(scroll, 360, 180);
-  GtkWidget *txtValue = gtk_text_view_new();
-  gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(txtValue), GTK_WRAP_WORD_CHAR);
-  gtk_container_add(GTK_CONTAINER(scroll), txtValue);
-  gtk_grid_attach(GTK_GRID(grid), lblKey, 0, 0, 1, 1);
-  gtk_grid_attach(GTK_GRID(grid), entryKey, 0, 1, 1, 1);
-  gtk_grid_attach(GTK_GRID(grid), lblValue, 0, 2, 1, 1);
-  gtk_grid_attach(GTK_GRID(grid), scroll, 0, 3, 1, 1);
-  gtk_container_add(GTK_CONTAINER(content), grid);
-
-  if (!addMode && canonicalIndex >= 0 &&
-      canonicalIndex < (int)m_defaultEntries.size()) {
-    gtk_entry_set_text(GTK_ENTRY(entryKey),
-                       m_defaultEntries[(size_t)canonicalIndex].key.c_str());
-    GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(txtValue));
-    gtk_text_buffer_set_text(
-        buf, m_defaultEntries[(size_t)canonicalIndex].value.c_str(), -1);
-  }
-
-  gtk_widget_show_all(dialog);
-  const int ret = gtk_dialog_run(GTK_DIALOG(dialog));
-  if (ret == GTK_RESPONSE_OK) {
-    const gchar *key = gtk_entry_get_text(GTK_ENTRY(entryKey));
-    GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(txtValue));
-    GtkTextIter start, end;
-    gtk_text_buffer_get_bounds(buf, &start, &end);
-    gchar *value = gtk_text_buffer_get_text(buf, &start, &end, FALSE);
-    if (key != NULL && key[0] != '\0') {
-      if (addMode)
-        m_defaultEntries.push_back(MacroUiRow{key, value ? value : ""});
-      else if (canonicalIndex >= 0 &&
-               canonicalIndex < (int)m_defaultEntries.size()) {
-        m_defaultEntries[(size_t)canonicalIndex].key = key;
-        m_defaultEntries[(size_t)canonicalIndex].value = value ? value : "";
-      }
-      if (isSearchMode())
-        refreshSearchProjection();
-      renderActiveMacroRows();
-      g_free(value);
-      gtk_widget_destroy(dialog);
-      return true;
-    }
-    g_free(value);
-  }
-  gtk_widget_destroy(dialog);
-  return false;
+/**
+ * @brief Copy one canonical macro row into the Replace/With widgets before dialog run.
+ * @param entryKey Key field `GtkEntry`.
+ * @param txtValue Value field `GtkTextView`.
+ * @param canonicalIndex Row index into `m_defaultEntries` (caller ensures in range).
+ */
+void SetupController::prefillMacroEditorFromCanonical(GtkWidget *entryKey,
+                                                      GtkWidget *txtValue,
+                                                      int canonicalIndex) {
+  gtk_entry_set_text(GTK_ENTRY(entryKey),
+                     m_defaultEntries[(size_t)canonicalIndex].key.c_str());
+  GtkTextBuffer *buf =
+      gtk_text_view_get_buffer(GTK_TEXT_VIEW(txtValue));
+  gtk_text_buffer_set_text(
+      buf, m_defaultEntries[(size_t)canonicalIndex].value.c_str(), -1);
 }
 
+/**
+ * @brief Apply saved editor key/value into `m_defaultEntries` and redraw list/search.
+ * @param key_utf8 NUL-terminated trigger from the entry (owned by GTK).
+ * @param value_utf8 NUL-terminated replacement (may be empty string).
+ * @param addMode When true, append new row else update existing when in range.
+ * @param canonicalIndex Edit-mode row index (`addMode` ignores for append path).
+ * @param canonicalIndexInRange When false in edit mode, row body is not updated.
+ *
+ * Progression:
+ * 1. Push or assign vectors in `m_defaultEntries`.
+ * 2. Optionally `refreshSearchProjection` when searching.
+ * 3. `renderActiveMacroRows`.
+ */
+void SetupController::commitMacroEditorSavePayload(
+    const gchar *key_utf8, const gchar *value_utf8, bool addMode,
+    int canonicalIndex, bool canonicalIndexInRange) {
+  const std::string value = value_utf8 ? value_utf8 : "";
+  if (addMode) {
+    MacroUiRow row;
+    row.key = key_utf8;
+    row.value = value;
+    refreshMacroUiRowSearchFoldCaches(row);
+    m_defaultEntries.push_back(std::move(row));
+  } else if (canonicalIndexInRange) {
+    m_defaultEntries[(size_t)canonicalIndex].key = key_utf8;
+    m_defaultEntries[(size_t)canonicalIndex].value = value;
+    refreshMacroUiRowSearchFoldCaches(m_defaultEntries[(size_t)canonicalIndex]);
+  }
+
+  const bool needToRefreshSearchHits = isSearchMode();
+  if (needToRefreshSearchHits)
+    refreshSearchProjection();
+  renderActiveMacroRows();
+}
+
+/**
+ * @brief Non-modal add/edit macro dialog: build shell, run it, apply Save.
+ * @param addMode When true, add flow; when false, edit `canonicalIndex`.
+ * @param canonicalIndex Row index for edit mode (ignored when `addMode`).
+ * @return True when user saved with a non-empty trigger key and lists refreshed.
+ *
+ * Progression:
+ * 1. `build_macro_editor_shell`; optional `prefillMacroEditorFromCanonical`.
+ * 2. `gtk_dialog_run`; Cancel or empty key → destroy dialog and return false.
+ * 3. Else `commitMacroEditorSavePayload`, free multiline buffer, destroy dialog.
+ */
+bool SetupController::openMacroEditor(bool addMode, int canonicalIndex) {
+  MacroEditorShell shell =
+      build_macro_editor_shell(GTK_WINDOW(m_view.getMacroDialog()), addMode);
+
+  const bool editingExistingMacro = !addMode;
+  const bool canonicalIndexInRange =
+      canonicalIndex >= 0 &&
+      canonicalIndex < static_cast<int>(m_defaultEntries.size());
+
+  if (editingExistingMacro && canonicalIndexInRange)
+    prefillMacroEditorFromCanonical(shell.entryKey, shell.txtValue,
+                                    canonicalIndex);
+
+  gtk_widget_show_all(shell.dialog);
+  const int ret = gtk_dialog_run(GTK_DIALOG(shell.dialog));
+
+  const bool userSavedMacroEditor = (ret == GTK_RESPONSE_OK);
+  if (!userSavedMacroEditor) {
+    gtk_widget_destroy(shell.dialog);
+    return false;
+  }
+
+  const gchar *key = gtk_entry_get_text(GTK_ENTRY(shell.entryKey));
+  const bool keyHasNonEmptyUtf8Text =
+      (key != NULL && key[0] != '\0');
+
+  gchar *value = read_macro_editor_multiline(shell.txtValue);
+
+  if (!keyHasNonEmptyUtf8Text) {
+    g_free(value);
+    gtk_widget_destroy(shell.dialog);
+    return false;
+  }
+
+  commitMacroEditorSavePayload(key, value ? value : "", addMode, canonicalIndex,
+                               canonicalIndexInRange);
+  g_free(value);
+  gtk_widget_destroy(shell.dialog);
+  return true;
+}
+
+/**
+ * @brief Warn then clear entire canonical macro list on user confirmation only.
+ */
 void SetupController::showConfirmAndClearAll() {
-  // Destructive clear is only allowed in default mode and always asks
-  // confirmation.
   GtkWidget *dlg = gtk_message_dialog_new(GTK_WINDOW(m_view.getMacroDialog()),
                                           GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING,
                                           GTK_BUTTONS_OK_CANCEL, "%s",
                                           _("Clear all macro items?"));
   const int ret = gtk_dialog_run(GTK_DIALOG(dlg));
   gtk_widget_destroy(dlg);
-  if (ret == GTK_RESPONSE_OK) {
+  const bool confirmedDestructiveClearAll =
+      (ret == GTK_RESPONSE_OK);
+  if (confirmedDestructiveClearAll) {
     m_defaultEntries.clear();
     renderActiveMacroRows();
   }

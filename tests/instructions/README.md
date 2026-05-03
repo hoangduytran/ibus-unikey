@@ -12,7 +12,36 @@ make test            # Makefile generator
 ctest --output-on-failure
 ```
 
-GTK-based targets under [`tests/macros/`](../macros/) are added only when **`src/setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that subtree is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing GTK/pkg-config, install **`libgtk-3-dev`** (Debian/Ubuntu naming) or the equivalent for your distro.
+GTK-based targets under [`tests/macros/`](../macros/) are added only when **`src/setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that subtree is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing GTK/pkg-config, install GTK 3 development packages—for example on **Debian / Ubuntu**:
+
+```sh
+sudo apt update
+sudo apt install libgtk-3-dev
+```
+
+On **Fedora**: `sudo dnf install gtk3-devel`. On **Arch Linux**: `sudo pacman -S gtk3`. Use your distro’s package search if names differ (`gtk+3`, `pkg-config`, etc.).
+
+To **see if GTK 3 dev files are already installed** before running `apt install`:
+
+- **Debian / Ubuntu** — package status (installed vs not):
+
+  ```sh
+  dpkg -s libgtk-3-dev
+  ```
+
+  Exit code `0` and a line like `Status: install ok installed` means it is installed. You can also list the version with `apt list --installed libgtk-3-dev 2>/dev/null`.
+
+- **Any distro with pkg-config** — headers/pkg-config module for GTK+ 3:
+
+  ```sh
+  pkg-config --exists gtk+-3.0 && pkg-config --modversion gtk+-3.0
+  ```
+
+  If this prints a version number, CMake/pkg-config can usually find GTK 3.
+
+- **Fedora**: `rpm -q gtk3-devel`
+
+- **Arch Linux**: `pacman -Qi gtk3`
 
 ## Pairing table
 
