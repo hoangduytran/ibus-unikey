@@ -62,6 +62,15 @@ static void test_csv_loads_from_extension()
     g_free(path);
 }
 
+static void test_tsv_loads_from_extension()
+{
+    gchar* path = g_build_filename(fixture_dir, "macros.tsv", NULL);
+    const gint count = load_macro_count(path);
+
+    g_assert_cmpint(count, >, 0);
+    g_free(path);
+}
+
 static void test_all_formats_resolve_by_filename_extension()
 {
     gchar* txt_path = g_build_filename(fixture_dir, "unikey_macros.txt", NULL);
@@ -69,24 +78,28 @@ static void test_all_formats_resolve_by_filename_extension()
     gchar* plist_path = g_build_filename(fixture_dir, "unikey_macro.plist", NULL);
     gchar* json_path = g_build_filename(fixture_dir, "generic_macros.json", NULL);
     gchar* csv_path = g_build_filename(fixture_dir, "macros.csv", NULL);
+    gchar* tsv_path = g_build_filename(fixture_dir, "macros.tsv", NULL);
 
     const gint txt_count = load_macro_count(txt_path);
     const gint yaml_count = load_macro_count(yaml_path);
     const gint plist_count = load_macro_count(plist_path);
     const gint json_count = load_macro_count(json_path);
     const gint csv_count = load_macro_count(csv_path);
+    const gint tsv_count = load_macro_count(tsv_path);
 
     g_assert_cmpint(txt_count, >, 0);
     g_assert_cmpint(yaml_count, >, 0);
     g_assert_cmpint(plist_count, >, 0);
     g_assert_cmpint(json_count, >, 0);
     g_assert_cmpint(csv_count, >, 0);
+    g_assert_cmpint(tsv_count, >, 0);
 
     g_free(txt_path);
     g_free(yaml_path);
     g_free(plist_path);
     g_free(json_path);
     g_free(csv_path);
+    g_free(tsv_path);
 }
 
 int main(int argc, char** argv)
@@ -101,6 +114,7 @@ int main(int argc, char** argv)
     g_test_add_func("/ui/macros/file-io/load-plist-from-extension", test_plist_loads_from_extension);
     g_test_add_func("/ui/macros/file-io/load-json-from-extension", test_json_loads_from_extension);
     g_test_add_func("/ui/macros/file-io/load-csv-from-extension", test_csv_loads_from_extension);
+    g_test_add_func("/ui/macros/file-io/load-tsv-from-extension", test_tsv_loads_from_extension);
     g_test_add_func("/ui/macros/file-io/all-supported-filter-still-uses-filename-extension", test_all_formats_resolve_by_filename_extension);
 
     return g_test_run();

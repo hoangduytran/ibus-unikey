@@ -31,6 +31,14 @@ cmake --build .
 
 Install steps remain as described in the wiki; the commands above are enough to compile the engine, IBus components, and setup tools for local work.
 
+**Macro interchange (setup I/O)** — `ibus-setup-unikey` links a static `macro_interchange` library that imports/exports UniKey text, Espanso-style YAML, JSON, Apple plist, CSV, and TSV. Configure fails if these dev packages are missing on Debian/Ubuntu:
+
+```sh
+sudo apt install libgtk-3-dev libjson-glib-dev libplist-dev libcsv-dev libyaml-cpp-dev
+```
+
+(Fedora/arch names differ; use your distro’s search for `json-glib`, `libplist`, `libcsv`, `yaml-cpp`.)
+
 ### Testing
 
 The project uses **CTest**. After configuring a build directory, run the full suite in any of these equivalent ways:
@@ -45,9 +53,20 @@ ctest --output-on-failure
 ```
 
 - **`ukengine_test`** — core engine and macro table smoke tests (no extra dependencies).
-- Tests under **`tests/macros/`** (dialog state, file I/O, export filename helpers) need **GTK 3** and related dev packages (e.g. `libgtk-3-dev` on Debian/Ubuntu) so CMake can find `gtk+-3.0` via pkg-config. If the macro subproject fails to configure, install those packages and re-run `cmake ..`.
+- Tests under **`tests/macros/`** exercise macro setup helpers and **loader routing by file extension** (`.txt`, `.yaml`, `.yml`, `.json`, `.plist`, `.csv`, `.tsv`). They need **GTK 3** and the interchange libraries listed above. If `cmake ..` fails in `setup/` or `tests/macros`, install the packages and re-run CMake.
 
-**Per-test instructions** (what each executable checks, how to run a single test) live in [**`tests/instructions/README.md`**](tests/instructions/README.md), with one markdown file paired to each main test source for easier code review.
+**Reviewer-oriented docs:** [**`tests/macros/README.md`**](tests/macros/README.md) (fixtures and what each CTest covers), [**`tests/macros/TEST_PLAN_macro_interchange_io.md`**](tests/macros/TEST_PLAN_macro_interchange_io.md) (manual GTK checks + automated mapping), and [**`tests/instructions/README.md`**](tests/instructions/README.md) (how to run a single test).
+
+**Per-test instructions** (what each executable checks, how to run it) live under **`tests/instructions/`**, with one markdown file paired to each main test source for easier code review.
+
+### Manual QA: macro interchange (round-trip and cross-platform)
+
+Automated tests only assert that **non-empty** tables load from small fixtures. For release-quality review, follow the **step-by-step checklist** in [**`tests/macros/TEST_PLAN_macro_interchange_io.md` — § Manual and round-trip QA**](tests/macros/TEST_PLAN_macro_interchange_io.md#manual-and-round-trip-qa-humans-and-reviewers):
+
+- Start from **[`tests/macros/unikey_macros.txt`](tests/macros/unikey_macros.txt)** (large Vietnamese sample): **clear all macros**, import, then type triggers in **IBus Unikey** in a **terminal**, **GUI text editor**, and **web** fields to confirm expansions and **tonal/orthography** (accents).
+- **Export** (e.g. plist, YAML, JSON, CSV/TSV) and **re-import** into a **clean** table to confirm **round-trip** parity for counts and spot-checked triggers.
+- **macOS:** if available, export plist from Linux setup and **import into macOS Text Replacements**, or export on Mac and **import on Linux** (see the test plan for caveats).
+- Always **reset/clear** the macro table (or use a throwaway user profile) before each import-focused test so results are not masked by old rows.
 
 ### Recent developer-facing changes (testing)
 

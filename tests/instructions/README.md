@@ -12,12 +12,14 @@ make test            # Makefile generator
 ctest --output-on-failure
 ```
 
-GTK-based targets under [`tests/macros/`](../macros/) are added only when **`setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that helper is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing GTK/pkg-config, install GTK 3 development packages—for example on **Debian / Ubuntu**:
+GTK-based targets under [`tests/macros/`](../macros/) are added only when **`setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that helper is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing dependencies, install GTK 3 **and** macro interchange libraries—for example on **Debian / Ubuntu**:
 
 ```sh
 sudo apt update
-sudo apt install libgtk-3-dev
+sudo apt install libgtk-3-dev libjson-glib-dev libplist-dev libcsv-dev libyaml-cpp-dev
 ```
+
+`setup/CMakeLists.txt` requires these for `macro_interchange` (used by `ibus-setup-unikey` and `macro-file-io-test`).
 
 On **Fedora**: `sudo dnf install gtk3-devel`. On **Arch Linux**: `sudo pacman -S gtk3`. Use your distro’s package search if names differ (`gtk+3`, `pkg-config`, etc.).
 
@@ -58,6 +60,10 @@ Run a single test by name:
 ctest -R ukengine_test --output-on-failure
 ctest -R macro-file-io --output-on-failure
 ```
+
+### Macro interchange: manual round-trip QA
+
+`macro-file-io-test` only checks fixture loads. For **typing in real apps**, Vietnamese **accents**, **export → clear → import**, and **Linux ↔ macOS plist**, follow [**`tests/macros/TEST_PLAN_macro_interchange_io.md` — Manual and round-trip QA**](../macros/TEST_PLAN_macro_interchange_io.md#manual-and-round-trip-qa-humans-and-reviewers).
 
 ## Related planning / QA markdown
 
