@@ -35,6 +35,9 @@
 #define CONFIG_MACROENABLED "macro-enabled"
 #define CONFIG_STANDALONEW "standalone-w-as-uw"
 
+/** Last directory used by macro import/export file choosers (UTF-8 path or empty). */
+#define CONFIG_MACRO_LASTWORKINGDIR "macro-last-working-dir"
+
 /**
  * @brief Maps persisted engine input method strings to runtime enum values.
  *

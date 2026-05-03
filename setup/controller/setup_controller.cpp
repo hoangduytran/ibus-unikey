@@ -17,6 +17,7 @@
 
 #include "macro_utils.h"
 #include "unikey_config.h"
+#include <setup/macro_file_io.h>
 #include <ukengine/mapping/mactab.h>
 
 /** @brief Process-wide pointer for code that resolves the active setup
@@ -218,11 +219,13 @@ void append_macro_list_row(GtkListStore *store, const gchar *key_utf8,
  * @return New chooser; caller runs and destroys it.
  */
 GtkWidget *build_macro_export_save_chooser(GtkWindow *parent) {
-  return gtk_file_chooser_dialog_new(
+  GtkWidget *dlg = gtk_file_chooser_dialog_new(
       _("Export macro"), parent,
       GTK_FILE_CHOOSER_ACTION_SAVE, dgettext("gtk30", "_Cancel"),
       GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Save"), GTK_RESPONSE_OK,
       nullptr);
+  macro_file_chooser_attach_export_filters(GTK_FILE_CHOOSER(dlg));
+  return dlg;
 }
 
 /**
@@ -231,11 +234,13 @@ GtkWidget *build_macro_export_save_chooser(GtkWindow *parent) {
  * @return New chooser; caller runs and destroys it.
  */
 GtkWidget *build_macro_import_open_chooser(GtkWindow *parent) {
-  return gtk_file_chooser_dialog_new(
+  GtkWidget *dlg = gtk_file_chooser_dialog_new(
       _("Import macro"), parent,
       GTK_FILE_CHOOSER_ACTION_OPEN, dgettext("gtk30", "_Cancel"),
       GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Open"), GTK_RESPONSE_OK,
       nullptr);
+  macro_file_chooser_attach_import_filters(GTK_FILE_CHOOSER(dlg));
+  return dlg;
 }
 
 } // namespace
@@ -720,19 +725,29 @@ void SetupController::handleMacroImport() {
  * @param path_owned Heap path from the file chooser; always `g_free`d here.
  *
  * Progression:
- * 1. `loadFromFile` into temporary `CMacroTable`; warn on partial load.
+ * 1. `macro_interchange_import_path` into temporary `CMacroTable` (extension-based interchange; no `.ukmcache`).
  * 2. Drain scratch `GtkListStore` rows into `m_defaultEntries`.
  * 3. If search mode active, `refreshSearchProjection`; always `renderActiveMacroRows`.
  */
 void SetupController::commitMacroImportMergeFromPath(gchar *path_owned) {
   CMacroTable macro;
   macro.init();
-  const bool importedAllRows = macro.loadFromFile(path_owned);
+  GError *importErr = nullptr;
+  const gboolean importedOk =
+      macro_interchange_import_path(path_owned, &macro, MACRO_INTERCHANGE_FORMAT_AUTO,
+                                    nullptr, &importErr);
   g_free(path_owned);
 
-  if (!importedAllRows) {
-    run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro,
-                           _("The macro file could not be loaded."));
+  if (!importedOk) {
+    gchar *summary = g_strdup_printf(
+        "%s%s%s",
+        _("The macro file could not be loaded."),
+        importErr ? "\n" : "",
+        importErr ? importErr->message : "");
+    run_macro_error_dialog(GTK_WINDOW(m_view.getMacroDialog()), &macro, summary);
+    g_free(summary);
+    g_clear_error(&importErr);
+    return;
   }
 
   GtkListStore *tmp =
@@ -789,7 +804,7 @@ void SetupController::handleMacroExport() {
  * Progression:
  * 1. `unikey_gtk_model_fill_macro_table` from current tree model.
  * 2. Error dialog when fill reports failures.
- * 3. Else `writeToFile`; error dialog when write fails.
+ * 3. Else `macro_interchange_export_path` (extension selects interchange codec; no `.ukmcache` for non-native formats).
  */
 void SetupController::commitMacroExportToPath(gchar *path_owned) {
   CMacroTable macro;
@@ -806,10 +821,19 @@ void SetupController::commitMacroExportToPath(gchar *path_owned) {
         parentWin, &macro,
         _("Not all macros could be written to the export file."));
   } else {
-    const bool wroteExportFile = macro.writeToFile(path_owned);
+    GError *exportErr = nullptr;
+    const gboolean wroteExportFile =
+        macro_interchange_export_path(path_owned, &macro, MACRO_INTERCHANGE_FORMAT_AUTO,
+                                      nullptr, &exportErr);
     if (!wroteExportFile) {
-      run_macro_error_dialog(parentWin, &macro,
-                             _("Could not write the export file."));
+      gchar *summary = g_strdup_printf(
+          "%s%s%s",
+          _("Could not write the export file."),
+          exportErr ? "\n" : "",
+          exportErr ? exportErr->message : "");
+      run_macro_error_dialog(parentWin, &macro, summary);
+      g_free(summary);
+      g_clear_error(&exportErr);
     }
   }
   g_free(path_owned);

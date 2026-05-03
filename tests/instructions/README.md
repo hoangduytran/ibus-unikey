@@ -12,7 +12,7 @@ make test            # Makefile generator
 ctest --output-on-failure
 ```
 
-GTK-based targets under [`tests/macros/`](../macros/) are added only when **`src/setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that subtree is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing GTK/pkg-config, install GTK 3 development packages—for example on **Debian / Ubuntu**:
+GTK-based targets under [`tests/macros/`](../macros/) are added only when **`setup/macro_file_io.cpp`** exists (see [`tests/CMakeLists.txt`](../CMakeLists.txt)). If that helper is absent, **`ukengine_test`** alone runs via CTest. When macros tests are enabled and **`cmake ..` fails** on missing GTK/pkg-config, install GTK 3 development packages—for example on **Debian / Ubuntu**:
 
 ```sh
 sudo apt update
@@ -61,4 +61,4 @@ ctest -R macro-file-io --output-on-failure
 
 ## Related planning / QA markdown
 
-Higher-level or historical scenarios live elsewhere, for example [`tests/setup-macro-ui/TEST_PLAN_current_commit_search_sort_edit_return.md`](../setup-macro-ui/TEST_PLAN_current_commit_search_sort_edit_return.md) and [`tests/macro-engine/`](../macro-engine/). Those complement—but do not replace—the per-source instructions above.
+Higher-level or historical scenarios live elsewhere, for example [`tests/setup-macro-ui/TEST_PLAN_current_commit_search_sort_edit_return.md`](../setup-macro-ui/TEST_PLAN_current_commit_search_sort_edit_return.md), [`tests/macros/TEST_PLAN_macro_interchange_io.md`](../macros/TEST_PLAN_macro_interchange_io.md), and [`tests/macro-engine/`](../macro-engine/). Those complement—but do not replace—the per-source instructions above.

@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Verifies `macro_table_load_any_format()` loads non-empty macro tables from fixture files **by filename extension**: native `.txt`, `.yaml`, and `.plist` samples under the fixture directory passed as **`argv[1]`**.
+Verifies `macro_table_load_any_format()` loads non-empty macro tables from fixture files **by filename extension**: native `.txt`, Espanso-style `.yaml`, Apple XML `.plist`, generic `.json` (array or map), and `.csv` samples under the fixture directory passed as **`argv[1]`**.
 
 ## Prerequisites
 
@@ -13,9 +13,13 @@ Verifies `macro_table_load_any_format()` loads non-empty macro tables from fixtu
 - Fixture directory containing at least:
   - `unikey_macros.txt`
   - `unikey_macro.yaml`
-  - `unikey_macro.plist`  
+  - `unikey_macro.plist`
+  - `generic_macros.json`
+  - `macros.csv`
 
 The CMake-defined command passes [`tests/macros/`](../../macros/) as that directory.
+
+**Test plan:** [`tests/macros/TEST_PLAN_macro_interchange_io.md`](../../macros/TEST_PLAN_macro_interchange_io.md) maps scenarios to this executable and related macro UI tests.
 
 ## How to run
 

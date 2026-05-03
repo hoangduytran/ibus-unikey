@@ -4,20 +4,19 @@ This directory contains focused tests and fixtures for macro setup UI behavior.
 
 ## What is covered
 
-Current automated coverage focuses on remembered import/export locations stored
-through GSettings:
+Automated coverage includes:
 
-- when no saved location exists, both choosers default to `$HOME/Documents`
-- import remembers the parent directory of the selected file
-- export remembers the parent directory of the selected file
-- import/export state is stored independently
-- the latest selected directory overwrites the previous saved value
-- missing or invalid saved directories fall back to `$HOME/Documents`
+- **Macro interchange I/O** (`macro_table_load_any_format` / `macro_interchange_*`): loads non-empty tables from fixtures by extension — `.txt`, `.yaml`, `.plist`, `.json`, `.csv` (see [`TEST_PLAN_macro_interchange_io.md`](TEST_PLAN_macro_interchange_io.md)).
+- **Remembered chooser directories** (GSettings): when no saved location exists, both choosers default to `$HOME/Documents`; import/export remember the parent directory of the chosen file; the latest path overwrites the previous value; invalid paths fall back to `$HOME/Documents`.
+- **Export filename completion** helpers (`macro_export_filename_*`).
 
 ## Files
 
-- `macro_dialog_state_test.cpp` — unit tests for remembered chooser folders
-- `unikey_macro.yaml` — YAML fixture for macro import/export workflows
+- `macro_file_io_test.cpp` — interchange loader tests (paired with `setup/macro_file_io.cpp`)
+- `macro_dialog_state_test.cpp` — remembered chooser folders (`setup/macro_dialog_state.cpp`)
+- `macro_export_filename_test.cpp` — export basename helpers (`setup/macro_export_filename.cpp`)
+- `unikey_macros.txt`, `unikey_macro.yaml`, `unikey_macro.plist`, `generic_macros.json`, `macros.csv` — interchange fixtures
+- [`TEST_PLAN_macro_interchange_io.md`](TEST_PLAN_macro_interchange_io.md) — QA plan linking fixtures and manual checks
 
 ## Build
 

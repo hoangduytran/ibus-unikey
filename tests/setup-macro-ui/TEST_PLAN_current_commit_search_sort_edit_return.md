@@ -44,7 +44,7 @@ Run setup app:
 Macro test data location:
 - Use macro scenario files under `tests/macros` when importing test data.
 - Keep deterministic test fixtures in `tests/macros` so all testers use the same inputs.
-- Temporary instruction: do not use YAML (`*.yaml`) or PLIST (`*.plist`) macro files for these UI scenarios yet.
+- Interchange formats (YAML, plist, JSON, CSV) are exercised by the loader tests and [`tests/macros/TEST_PLAN_macro_interchange_io.md`](../macros/TEST_PLAN_macro_interchange_io.md); use small fixtures first when probing import-merge behavior in this UI plan.
 
 ## Chuẩn bị môi trường (Tiếng Việt)
 
@@ -70,7 +70,7 @@ Chạy setup app:
 Vị trí dữ liệu test macro:
 - Dùng các file kịch bản macro trong `tests/macros` khi import dữ liệu test.
 - Giữ fixture cố định trong `tests/macros` để mọi người test cùng một đầu vào.
-- Hướng dẫn tạm thời: chưa sử dụng file macro YAML (`*.yaml`) hoặc PLIST (`*.plist`) cho các kịch bản UI này.
+- Định dạng trao đổi (YAML, plist, JSON, CSV) được kiểm tra trong test loader và [`tests/macros/TEST_PLAN_macro_interchange_io.md`](../macros/TEST_PLAN_macro_interchange_io.md); khi thử import trong kế hoạch UI này nên bắt đầu với fixture nhỏ.
 
 ---
 

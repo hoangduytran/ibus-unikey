@@ -9,6 +9,11 @@ class CMacroTable;
  */
 enum class MacroFormatId {
     TextUniKey,
+    JsonMacros,
+    YamlMacros,
+    PlistMacTextReplacement,
+    CsvMacros,
+    TsvMacros,
 };
 
 /**
