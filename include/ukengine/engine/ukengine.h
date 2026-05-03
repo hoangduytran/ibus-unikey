@@ -42,6 +42,8 @@
 #include "inputproc.h"
 #include "mactab.h"
 
+#include <vector>
+
 /**
  * @brief Shared immutable/global runtime data for all UniKey engine instances.
  *
@@ -278,6 +280,10 @@ protected:
     };
 
     WordInfo m_buffer[MAX_UK_ENGINE];         /**< working buffer for character composition */
+
+    /** Scratch buffers for macroMatch (unbounded replacement via heap). */
+    std::vector<StdVnChar> m_macroKeyScratch;
+    std::vector<StdVnChar> m_macroTextScratch;
 
     /**
      * @brief Process hook mark in combination with user options and output.

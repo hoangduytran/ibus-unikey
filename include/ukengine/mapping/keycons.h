@@ -31,11 +31,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * keyboard mapping options.
  */
 
-// macro table constants
-#define MAX_MACRO_KEY_LEN 16
-//#define MAX_MACRO_TEXT_LEN 256
-#define MAX_MACRO_TEXT_LEN 1024 /**< maximum macro replacement text length */
-#define MAX_MACRO_LINE (MAX_MACRO_TEXT_LEN + MAX_MACRO_KEY_LEN) /**< max line buffer length for macro storage */
+/**
+ * Typing-path guard: maximum StdVnChar units in macro trigger probe (macroMatch).
+ * Per-entry storage and replacement text are otherwise heap-backed in CMacroTable.
+ */
+#define MACRO_MATCH_MAX_KEY_UNITS 4096
+
+/** @deprecated Use MACRO_MATCH_MAX_KEY_UNITS; kept for transitional includes. */
+#define MAX_MACRO_KEY_LEN MACRO_MATCH_MAX_KEY_UNITS
 
 #define CP_US_ANSI 1252 /**< default Windows ANSI code page */
 

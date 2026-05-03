@@ -48,3 +48,6 @@ add_subdirectory(data)
 add_subdirectory(po)
 add_subdirectory(tests)
 
+# With enable_testing(), CMake generates a `test` target (e.g. `make test` / `cmake --build . --target test`)
+# that runs CTest. Do not add_custom_target(test) — that name is reserved.
+

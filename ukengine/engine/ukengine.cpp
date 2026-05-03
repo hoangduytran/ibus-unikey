@@ -2988,6 +2988,7 @@ UkEngine::UkEngine()
     m_reverted = false;
     m_toEscape = false;
     m_keyRestored = false;
+    m_macroKeyScratch.reserve((size_t)MACRO_MATCH_MAX_KEY_UNITS + 4u);
 }
 
 //----------------------------------------------------
@@ -3056,19 +3057,16 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
         return 0;
 
     const StdVnChar *pMacText = NULL;
-    StdVnChar key[MAX_MACRO_KEY_LEN + 1];
+    m_macroKeyScratch.resize((size_t)MACRO_MATCH_MAX_KEY_UNITS + 2u);
+    StdVnChar *const key = m_macroKeyScratch.data();
     StdVnChar *pKeyStart;
-
-    // Use static macro text so we can gain a bit of performance
-    // by avoiding memory allocation each time this function is called
-    static StdVnChar macroText[MAX_MACRO_TEXT_LEN + 1];
 
     int i, j;
 
     i = m_current;
-    while (i >= 0 && (m_current - i + 1) < MAX_MACRO_KEY_LEN)
+    while (i >= 0 && (m_current - i + 1) < MACRO_MATCH_MAX_KEY_UNITS)
     {
-        while (i >= 0 && m_buffer[i].form != vnw_empty && (m_current - i + 1) < MAX_MACRO_KEY_LEN)
+        while (i >= 0 && m_buffer[i].form != vnw_empty && (m_current - i + 1) < MACRO_MATCH_MAX_KEY_UNITS)
             i--;
         if (i >= 0 && m_buffer[i].form != vnw_empty)
             return 0;
@@ -3151,6 +3149,9 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
     while (pMacText[charCount] != 0)
         charCount++;
 
+    m_macroTextScratch.resize((size_t)charCount + 1u);
+    StdVnChar *const macroText = m_macroTextScratch.data();
+
     for (i = 0; i < charCount; i++)
     {
         if (macroCase == VnCaseAllCapital)
@@ -3160,6 +3161,7 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
         else
             macroText[i] = pMacText[i];
     }
+    macroText[charCount] = 0;
 
     // Convert to target output charset
     int outSize;

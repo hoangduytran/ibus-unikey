@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <ukengine/mapping/keycons.h>
+#include <ukengine/mapping/vnconv.h>
 #include "macro_utils.h"
 
 #define _(str) gettext(str)
@@ -21,58 +22,60 @@ static std::string macroKeyFoldForMap(const char *utf8)
     return s;
 }
 
+/** Convert NUL-terminated VNSTANDARD string to UTF-8 using a growable buffer. */
+static bool vnStdToUtf8Display(const StdVnChar *src, std::string &out)
+{
+    std::vector<char> buf(512);
+    for (int attempt = 0; attempt < 24; attempt++) {
+        int inLen = -1;
+        int maxOut = (int)buf.size();
+        int ret = VnConvert(CONV_CHARSET_VNSTANDARD, CONV_CHARSET_XUTF8, (UKBYTE *)src, (UKBYTE *)buf.data(),
+                            &inLen, &maxOut);
+        if (ret == 0) {
+            out.assign(buf.data(), (size_t)maxOut);
+            while (!out.empty() && out.back() == '\0')
+                out.pop_back();
+            return true;
+        }
+        if (buf.size() > (size_t)64 * 1024 * 1024)
+            return false;
+        buf.resize(buf.size() * 2);
+    }
+    return false;
+}
+
 void list_store_append(GtkListStore *list, CMacroTable *macro)
 {
     const int n = macro->getCount();
     if (n <= 0)
         return;
 
-    gchar key[MAX_MACRO_KEY_LEN * 3];
-    gchar value[MAX_MACRO_TEXT_LEN * 3];
-    UKBYTE *p;
-    int inLen, maxOutLen, ret;
-
     std::unordered_map<std::string, int> last_index;
     for (int i = 0; i < n; i++)
     {
-        p = (UKBYTE *)macro->getKey(i);
-        inLen = -1;
-        maxOutLen = sizeof(key);
-        ret = VnConvert(CONV_CHARSET_VNSTANDARD, CONV_CHARSET_XUTF8,
-                        p, (UKBYTE *)key,
-                        &inLen, &maxOutLen);
-        if (ret != 0)
+        std::string keyUtf8;
+        if (!vnStdToUtf8Display(macro->getKey(i), keyUtf8))
             continue;
-        const std::string fk = macroKeyFoldForMap(key);
+        const std::string fk = macroKeyFoldForMap(keyUtf8.c_str());
         last_index[fk] = i;
     }
 
     for (int i = 0; i < n; i++)
     {
-        p = (UKBYTE *)macro->getKey(i);
-        inLen = -1;
-        maxOutLen = sizeof(key);
-        ret = VnConvert(CONV_CHARSET_VNSTANDARD, CONV_CHARSET_XUTF8,
-                        p, (UKBYTE *)key,
-                        &inLen, &maxOutLen);
-        if (ret != 0)
+        std::string keyUtf8;
+        if (!vnStdToUtf8Display(macro->getKey(i), keyUtf8))
             continue;
-        const std::string fold = macroKeyFoldForMap(key);
+        const std::string fold = macroKeyFoldForMap(keyUtf8.c_str());
         if (last_index[fold] != i)
             continue;
 
-        p = (UKBYTE *)macro->getText(i);
-        inLen = -1;
-        maxOutLen = sizeof(value);
-        ret = VnConvert(CONV_CHARSET_VNSTANDARD, CONV_CHARSET_XUTF8,
-                        p, (UKBYTE *)value,
-                        &inLen, &maxOutLen);
-        if (ret != 0)
+        std::string valueUtf8;
+        if (!vnStdToUtf8Display(macro->getText(i), valueUtf8))
             continue;
 
         GtkTreeIter iter;
         gtk_list_store_append(list, &iter);
-        gtk_list_store_set(list, &iter, COL_KEY, key, COL_VALUE, value, -1);
+        gtk_list_store_set(list, &iter, COL_KEY, keyUtf8.c_str(), COL_VALUE, valueUtf8.c_str(), -1);
     }
 }
 

@@ -60,5 +60,5 @@ target_link_libraries(test-macro-file-io
 
 add_test(
     NAME macro-file-io-test
-    COMMAND test-macro-file-io ${PROJECT_SOURCE_DIR}/tests/UI/macros
+    COMMAND test-macro-file-io ${PROJECT_SOURCE_DIR}/tests/macros
 )
