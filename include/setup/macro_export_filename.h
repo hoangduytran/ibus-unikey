@@ -41,6 +41,20 @@ gboolean macro_export_filename_has_extension_conflict(const gchar *basename_utf8
  */
 gchar *macro_export_filename_complete(const gchar *path_utf8, const gchar *preferred_extension_utf8);
 
+/**
+ * @brief Completes a save path: default stem when basename missing, then preferred extension.
+ *
+ * If the basename is empty or `.`, substitutes @a default_stem_utf8 (or `"macro"` when null/empty).
+ * Then applies the same rules as `macro_export_filename_complete` for @a preferred_extension_utf8.
+ *
+ * @param path_utf8 Path from `GtkFileChooser` (directory + optional basename).
+ * @param preferred_extension_utf8 Lowercase extension with dot; if null or empty, returns copy of @a path_utf8.
+ * @param default_stem_utf8 Basename without extension when user left the name blank; null uses `macro`.
+ * @return Newly allocated path; `g_free` when done.
+ */
+gchar *macro_export_filename_finalize_for_save(const gchar *path_utf8, const gchar *preferred_extension_utf8,
+                                               const gchar *default_stem_utf8);
+
 #ifdef __cplusplus
 }
 #endif

@@ -17,6 +17,7 @@
 
 #include "macro_utils.h"
 #include "unikey_config.h"
+#include <setup/macro_export_filename.h>
 #include <setup/macro_file_io.h>
 #include <ukengine/mapping/mactab.h>
 
@@ -225,6 +226,7 @@ GtkWidget *build_macro_export_save_chooser(GtkWindow *parent) {
       GTK_RESPONSE_CANCEL, dgettext("gtk30", "_Save"), GTK_RESPONSE_OK,
       nullptr);
   macro_file_chooser_attach_export_filters(GTK_FILE_CHOOSER(dlg));
+  gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dlg), "macro");
   return dlg;
 }
 
@@ -792,7 +794,13 @@ void SetupController::handleMacroExport() {
       (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_OK);
   if (userChoseExportPath) {
     gchar *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
-    commitMacroExportToPath(path);
+    GtkFileFilter *export_filter = gtk_file_chooser_get_filter(GTK_FILE_CHOOSER(chooser));
+    const gchar *preferred_extension =
+        macro_file_chooser_filter_preferred_export_extension(export_filter);
+    gchar *final_export_path =
+        macro_export_filename_finalize_for_save(path, preferred_extension, "macro");
+    g_free(path);
+    commitMacroExportToPath(final_export_path);
   }
   gtk_widget_destroy(chooser);
 }

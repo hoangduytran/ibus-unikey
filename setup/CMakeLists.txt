@@ -20,6 +20,7 @@ add_library(macro_interchange STATIC
     macro_handler_json.cpp
     macro_handler_csv.cpp
     macro_file_io.cpp
+    macro_export_filename.cpp
 )
 
 target_include_directories(macro_interchange PUBLIC

@@ -92,6 +92,43 @@ ctest --test-dir build -R macro-file-io-test --output-on-failure
 
 ---
 
+### Phase G — Long and large replacement (reviewer)
+
+**Goal:** Confirm the macro dialog and engine handle a **long, multi-line** replacement (many rows of text) without truncation, mangled UTF-8, or UI freezes.
+
+**Steps**
+
+1. Open Macro preferences in setup (`ibus-setup-unikey`).
+2. Add a macro (new row or edit): set the **trigger / key** to **`htmlpage`**.
+3. Set **replacement / with** to the following value (copy the whole block, including line breaks):
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>My Website</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+  </head>
+  <body>
+    <main>
+        <h1>Welcome to My Website</h1>  
+    </main>
+    <script src="index.js"></script>
+  </body>
+</html>
+```
+
+4. Save/close the dialog as your build expects; **export** (e.g. YAML or JSON) and open the file — the exported **`replace` / `content`** for `htmlpage` must match the snippet **in full**.
+5. In a text editor with Unikey active, type **`htmlpage`** and confirm the **entire** HTML is inserted (length and line breaks match the block above).
+
+**Pass criteria:** No silent truncation in the list view, export file, or live expansion; no crash when pasting or saving.
+
+---
+
 ## Manual smoke (GTK setup) — short list
 
 Build and run:
@@ -104,6 +141,7 @@ cmake -S . -B build && cmake --build build
 1. **Import — extension routing:** Open Macro preferences → Import → pick each fixture type; merged rows appear and no `.ukmcache` file appears next to the imported interchange file (only native UniKey engine paths use the cache).
 2. **Export — extension routing:** Export with basename `test.yaml`, `test.plist`, `test.json`, `test.csv`, `test.tsv`; confirm output format matches extension (YAML block `matches:`, XML plist array of dicts, JSON array, quoted CSV/TSV with `trigger`/`content` header).
 3. **Chooser filters:** Import/Export dialogs list “All supported formats” and per-type filters from `macro_file_chooser_attach_*`.
+4. **Long replacement:** Follow **Phase G** above (`htmlpage` + full HTML template) to stress-test paste, export, and live expansion.
 
 ## Phạm vi (Tiếng Việt)
 

@@ -79,11 +79,23 @@ gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table
                                        GError **error);
 
 typedef struct _GtkFileChooser GtkFileChooser;
+typedef struct _GtkFileFilter GtkFileFilter;
+
+/**
+ * @brief Preferred lower-case extension (including dot) for @a filter when saving.
+ *
+ * Export filters are tagged when attached via `macro_file_chooser_attach_export_filters`. Unknown or
+ * untagged filters default to `.txt` (native UniKey text, matching AUTO fallback).
+ *
+ * @param filter Active `GtkFileFilter` from the save chooser (may be null).
+ * @return Static extension string such as `".json"`.
+ */
+const gchar *macro_file_chooser_filter_preferred_export_extension(GtkFileFilter *filter);
 
 /** @brief Adds "all supported" and per-format patterns to a GTK import chooser. */
 void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser);
 
-/** @brief Adds "all supported" and per-format patterns to a GTK export chooser. */
+/** @brief Same patterns as import; tags each filter with a default extension for export completion. */
 void macro_file_chooser_attach_export_filters(GtkFileChooser *chooser);
 
 #endif /* __cplusplus */

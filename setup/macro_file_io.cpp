@@ -93,8 +93,18 @@ gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table
   return export_succeeded;
 }
 
-/** @brief Attaches "all supported" plus per-format GtkFileFilter rows for import; sets default to all. */
-void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
+static GQuark ibus_macro_export_ext_quark(void) {
+  static GQuark q = 0;
+  if (!q)
+    q = g_quark_from_static_string("ibus-unikey-macro-export-pref-ext");
+  return q;
+}
+
+static void tag_filter_export_extension(GtkFileFilter *filter, const gchar *extension_with_dot) {
+  g_object_set_qdata(G_OBJECT(filter), ibus_macro_export_ext_quark(), (gpointer)extension_with_dot);
+}
+
+static void attach_macro_chooser_filters(GtkFileChooser *chooser, gboolean tag_export_defaults) {
   GtkFileFilter *all = gtk_file_filter_new();
   gtk_file_filter_set_name(all, _("All supported formats"));
   gtk_file_filter_add_pattern(all, "*.txt");
@@ -106,43 +116,67 @@ void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
   gtk_file_filter_add_pattern(all, "*.csv");
   gtk_file_filter_add_pattern(all, "*.tsv");
   gtk_file_chooser_add_filter(chooser, all);
+  if (tag_export_defaults)
+    tag_filter_export_extension(all, ".txt");
 
   GtkFileFilter *uni = gtk_file_filter_new();
   gtk_file_filter_set_name(uni, _("UniKey macro text"));
   gtk_file_filter_add_pattern(uni, "*.txt");
   gtk_file_filter_add_pattern(uni, "*.macro");
   gtk_file_chooser_add_filter(chooser, uni);
+  if (tag_export_defaults)
+    tag_filter_export_extension(uni, ".txt");
 
   GtkFileFilter *json = gtk_file_filter_new();
   gtk_file_filter_set_name(json, _("JSON macros"));
   gtk_file_filter_add_pattern(json, "*.json");
   gtk_file_chooser_add_filter(chooser, json);
+  if (tag_export_defaults)
+    tag_filter_export_extension(json, ".json");
 
   GtkFileFilter *yaml = gtk_file_filter_new();
   gtk_file_filter_set_name(yaml, _("YAML macros"));
   gtk_file_filter_add_pattern(yaml, "*.yaml");
   gtk_file_filter_add_pattern(yaml, "*.yml");
   gtk_file_chooser_add_filter(chooser, yaml);
+  if (tag_export_defaults)
+    tag_filter_export_extension(yaml, ".yaml");
 
   GtkFileFilter *plist = gtk_file_filter_new();
   gtk_file_filter_set_name(plist, _("macOS plist (text replacements)"));
   gtk_file_filter_add_pattern(plist, "*.plist");
   gtk_file_chooser_add_filter(chooser, plist);
+  if (tag_export_defaults)
+    tag_filter_export_extension(plist, ".plist");
 
   GtkFileFilter *csv = gtk_file_filter_new();
   gtk_file_filter_set_name(csv, _("CSV macros"));
   gtk_file_filter_add_pattern(csv, "*.csv");
   gtk_file_chooser_add_filter(chooser, csv);
+  if (tag_export_defaults)
+    tag_filter_export_extension(csv, ".csv");
 
   GtkFileFilter *tsv = gtk_file_filter_new();
   gtk_file_filter_set_name(tsv, _("TSV macros"));
   gtk_file_filter_add_pattern(tsv, "*.tsv");
   gtk_file_chooser_add_filter(chooser, tsv);
+  if (tag_export_defaults)
+    tag_filter_export_extension(tsv, ".tsv");
 
   gtk_file_chooser_set_filter(chooser, all);
 }
 
-/** @brief Reuses the same filter set as import (supported extensions match for save dialogs). */
+const gchar *macro_file_chooser_filter_preferred_export_extension(GtkFileFilter *filter) {
+  if (!filter)
+    return ".txt";
+  gpointer tagged = g_object_get_qdata(G_OBJECT(filter), ibus_macro_export_ext_quark());
+  return tagged ? (const gchar *)tagged : ".txt";
+}
+
+void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
+  attach_macro_chooser_filters(chooser, FALSE);
+}
+
 void macro_file_chooser_attach_export_filters(GtkFileChooser *chooser) {
-  macro_file_chooser_attach_import_filters(chooser);
+  attach_macro_chooser_filters(chooser, TRUE);
 }
