@@ -1,0 +1,44 @@
+refactor(ukengine): macro match decomposition, readability, and Doxygen comments
+
+## Why
+
+- `UkEngine::macroMatch` had grown hard to follow; boolean spans and the outer scan loop
+  needed clearer names and smaller units.
+- Project convention (aligned with `mactab.cpp` and related TUs) uses Doxygen `@brief`,
+  `@param` / `@return`, and numbered **Progression** blocks for non-trivial functions.
+
+## What changed
+
+### `ukengine/engine/engine_components/macro.cpp`
+
+- Split macro matching into focused helpers: `macroMatchPreSkip`, `macroMatchScanForHit`,
+  `macroMatchBuildExpansionStdVn`, `macroMatchFlushOutput`, plus `macroMatchWordInfoToStdKey`,
+  `macroMatchMacroKeyFitsEngine`, `macroMatchRewindToWordBoundary`,
+  `macroMatchBuildFoldLookupKey`, `macroMatchLookupAtSpan`.
+- Anonymous-namespace helpers for casing and length (`classifyMacroKeyCase`,
+  `applyMacroCaseToBuffer`, title-casing after ASCII space, etc.).
+- Use descriptive locals (e.g. `nextCandidateStartIndex`, `wordSpanStartIndex`,
+  `shiftIsDown`, `roomLeftInOutBuffer`).
+- Outer scan loop semantics preserved: after each failed attempt, advance
+  `nextCandidateStartIndex = wordSpanStartIndex - 1` (matches original post-rewind `i--`).
+- **`@file`** TU overview with high-level **Progression** for the macro pipeline; each
+  function documented with **Progression** steps.
+- Doc correction: clarify `wordSpanStartIndex == -1` (suffix key uses `lookup(key+1)`;
+  `key[0]` not filled from buffer).
+
+### `include/ukengine/engine/ukengine.h`
+
+- Declare private macro helpers with `@brief` (and **Progression** on `macroMatch`) so the
+  header matches the implementation split.
+
+## Files touched
+
+- `ukengine/engine/engine_components/macro.cpp`
+- `include/ukengine/engine/ukengine.h`
+- `commit.txt`
+
+## Verify
+
+```bash
+cmake --build build -j$(nproc) && ctest --output-on-failure -R ukengine
+```

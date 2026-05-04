@@ -1,0 +1,182 @@
+// -*- mode:c++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
+/**
+ * @file macro_file_io.cpp
+ * @brief Macro interchange entry points and GTK file chooser filters.
+ *
+ * Handler types and AUTO suffix routing are registered in each
+ * `macro_handler_*.cpp` via `MacroFormatHandlerRegistry::register_handler`.
+ */
+
+#include <setup/macro_file_io.h>
+
+#include <cstring>
+#include <memory>
+
+#include <glib/gi18n-lib.h>
+#include <gtk/gtk.h>
+
+#include <setup/macro_format_handler.h>
+#include <setup/macro_format_handler_registry.h>
+#include <setup/macro_interchange_common.h>
+
+#include <ukengine/mapping/mactab.h>
+
+/**
+ * @brief Loads macros with format inferred from @a filename (AUTO).
+ * @see macro_interchange_import_path
+ */
+gboolean macro_table_load_any_format(const gchar *filename, CMacroTable *table, GError **error) {
+  return macro_interchange_import_path(filename, table, MACRO_INTERCHANGE_FORMAT_AUTO, nullptr, error);
+}
+
+/**
+ * @brief Dispatches import: reset table, resolve handler from @a forced or path suffix, parse file.
+ * @param stats Optional zeroed counters then filled by handler where implemented.
+ */
+gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table,
+                                       MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
+                                       GError **err) {
+  if (!filename || !table) {
+    macro_interchange::fail(err, "Invalid macro interchange import arguments");
+    return FALSE;
+  }
+
+  if (stats)
+    memset(stats, 0, sizeof(*stats));
+
+  table->resetContent();
+
+  MacroInterchangeForcedFormat resolved_format = forced;
+  if (resolved_format == MACRO_INTERCHANGE_FORMAT_AUTO)
+    resolved_format = MacroFormatHandlerRegistry::detect_from_path(filename);
+
+  std::unique_ptr<MacroFormatHandler> format_handler =
+      MacroFormatHandlerRegistry::create(resolved_format);
+  if (!format_handler) {
+    macro_interchange::fail(err, "Unsupported macro interchange format");
+    return FALSE;
+  }
+
+  return format_handler->import_from_path(filename, table, stats, err);
+}
+
+/**
+ * @brief Dispatches export: resolve handler, write file; on success fills @a stats imported count.
+ */
+gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table,
+                                       MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
+                                       GError **err) {
+  if (!filename || !table) {
+    macro_interchange::fail(err, "Invalid macro interchange export arguments");
+    return FALSE;
+  }
+
+  if (stats)
+    memset(stats, 0, sizeof(*stats));
+
+  MacroInterchangeForcedFormat resolved_format = forced;
+  if (resolved_format == MACRO_INTERCHANGE_FORMAT_AUTO)
+    resolved_format = MacroFormatHandlerRegistry::detect_from_path(filename);
+
+  std::unique_ptr<MacroFormatHandler> format_handler =
+      MacroFormatHandlerRegistry::create(resolved_format);
+  if (!format_handler) {
+    macro_interchange::fail(err, "Unsupported macro interchange export format");
+    return FALSE;
+  }
+
+  const gboolean export_succeeded = format_handler->export_to_path(filename, table, stats, err);
+  if (export_succeeded && stats) {
+    stats->imported = table->getCount();
+    stats->attempted = stats->imported;
+  }
+  return export_succeeded;
+}
+
+static GQuark ibus_macro_export_ext_quark(void) {
+  static GQuark q = 0;
+  if (!q)
+    q = g_quark_from_static_string("ibus-unikey-macro-export-pref-ext");
+  return q;
+}
+
+static void tag_filter_export_extension(GtkFileFilter *filter, const gchar *extension_with_dot) {
+  g_object_set_qdata(G_OBJECT(filter), ibus_macro_export_ext_quark(), (gpointer)extension_with_dot);
+}
+
+static void attach_macro_chooser_filters(GtkFileChooser *chooser, gboolean tag_export_defaults) {
+  GtkFileFilter *all = gtk_file_filter_new();
+  gtk_file_filter_set_name(all, _("All supported formats"));
+  gtk_file_filter_add_pattern(all, "*.txt");
+  gtk_file_filter_add_pattern(all, "*.macro");
+  gtk_file_filter_add_pattern(all, "*.json");
+  gtk_file_filter_add_pattern(all, "*.yaml");
+  gtk_file_filter_add_pattern(all, "*.yml");
+  gtk_file_filter_add_pattern(all, "*.plist");
+  gtk_file_filter_add_pattern(all, "*.csv");
+  gtk_file_filter_add_pattern(all, "*.tsv");
+  gtk_file_chooser_add_filter(chooser, all);
+  if (tag_export_defaults)
+    tag_filter_export_extension(all, ".txt");
+
+  GtkFileFilter *uni = gtk_file_filter_new();
+  gtk_file_filter_set_name(uni, _("UniKey macro text"));
+  gtk_file_filter_add_pattern(uni, "*.txt");
+  gtk_file_filter_add_pattern(uni, "*.macro");
+  gtk_file_chooser_add_filter(chooser, uni);
+  if (tag_export_defaults)
+    tag_filter_export_extension(uni, ".txt");
+
+  GtkFileFilter *json = gtk_file_filter_new();
+  gtk_file_filter_set_name(json, _("JSON macros"));
+  gtk_file_filter_add_pattern(json, "*.json");
+  gtk_file_chooser_add_filter(chooser, json);
+  if (tag_export_defaults)
+    tag_filter_export_extension(json, ".json");
+
+  GtkFileFilter *yaml = gtk_file_filter_new();
+  gtk_file_filter_set_name(yaml, _("YAML macros"));
+  gtk_file_filter_add_pattern(yaml, "*.yaml");
+  gtk_file_filter_add_pattern(yaml, "*.yml");
+  gtk_file_chooser_add_filter(chooser, yaml);
+  if (tag_export_defaults)
+    tag_filter_export_extension(yaml, ".yaml");
+
+  GtkFileFilter *plist = gtk_file_filter_new();
+  gtk_file_filter_set_name(plist, _("macOS plist (text replacements)"));
+  gtk_file_filter_add_pattern(plist, "*.plist");
+  gtk_file_chooser_add_filter(chooser, plist);
+  if (tag_export_defaults)
+    tag_filter_export_extension(plist, ".plist");
+
+  GtkFileFilter *csv = gtk_file_filter_new();
+  gtk_file_filter_set_name(csv, _("CSV macros"));
+  gtk_file_filter_add_pattern(csv, "*.csv");
+  gtk_file_chooser_add_filter(chooser, csv);
+  if (tag_export_defaults)
+    tag_filter_export_extension(csv, ".csv");
+
+  GtkFileFilter *tsv = gtk_file_filter_new();
+  gtk_file_filter_set_name(tsv, _("TSV macros"));
+  gtk_file_filter_add_pattern(tsv, "*.tsv");
+  gtk_file_chooser_add_filter(chooser, tsv);
+  if (tag_export_defaults)
+    tag_filter_export_extension(tsv, ".tsv");
+
+  gtk_file_chooser_set_filter(chooser, all);
+}
+
+const gchar *macro_file_chooser_filter_preferred_export_extension(GtkFileFilter *filter) {
+  if (!filter)
+    return ".txt";
+  gpointer tagged = g_object_get_qdata(G_OBJECT(filter), ibus_macro_export_ext_quark());
+  return tagged ? (const gchar *)tagged : ".txt";
+}
+
+void macro_file_chooser_attach_import_filters(GtkFileChooser *chooser) {
+  attach_macro_chooser_filters(chooser, FALSE);
+}
+
+void macro_file_chooser_attach_export_filters(GtkFileChooser *chooser) {
+  attach_macro_chooser_filters(chooser, TRUE);
+}

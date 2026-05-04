@@ -50,7 +50,7 @@
       <description>Allow type with more freedom</description>
     </key>
     <key name="macro-enabled" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Use macro</summary>
       <description>Enable macro feature</description>
     </key>
@@ -58,6 +58,11 @@
       <default>true</default>
       <summary>Standalone W as ư (Telex only)</summary>
       <description></description>
+    </key>
+    <key name="macro-last-working-dir" type="s">
+      <default>''</default>
+      <summary>Last macro import/export directory</summary>
+      <description>Remembered folder for GTK macro file choosers</description>
     </key>
   </schema>
 </schemalist>

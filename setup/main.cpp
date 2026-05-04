@@ -2,49 +2,47 @@
 #include "config.h"
 #endif
 
+/**
+ * @file main.cpp
+ * @brief `ibus-setup-unikey` entry point: locale, config, GTK, view/controller wiring, main loop.
+ */
+
 #include <libintl.h>
 #include <locale.h>
 #include <gtk/gtk.h>
 
 #include "unikey_config.h"
 
-#define _(string) gettext(string)
+#include "ui/setup_view.h"
+#include "config/settings_store.h"
+#include "controller/setup_controller.h"
 
-GtkWidget* mwin;
-GtkWidget* dlgMacro;
-GtkTreeView* tree_macro;
+/**
+ * @brief Initializes gettext, UniKey config, GTK, builds the setup UI, and runs `gtk_main()`.
+ * @param argc Argument count from the runtime.
+ * @param argv Argument vector; consumed by `gtk_init()`.
+ * @return Exit status (always 0 on normal shutdown).
+ */
+int main(int argc, char **argv) {
+  setlocale(LC_ALL, "");
+  bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
+  textdomain(GETTEXT_PACKAGE);
 
-void init_gtk_builder()
-{
-    GtkBuilder* builder = gtk_builder_new();
-    gtk_builder_add_from_file(builder, PKGDATADIR "/ui/ibus-unikey.ui", NULL);
-    gtk_builder_connect_signals(builder, NULL);
+  ibus_unikey_config_init();
 
-    mwin = GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
-    dlgMacro = GTK_WIDGET(gtk_builder_get_object(builder, "macro_dialog"));
-    gtk_window_set_transient_for(GTK_WINDOW(dlgMacro), GTK_WINDOW(mwin));
+  gtk_init(&argc, &argv);
+  gtk_window_set_default_icon_from_file(PKGDATADIR "/icons/ibus-unikey.svg", NULL);
 
-    tree_macro = GTK_TREE_VIEW(gtk_builder_get_object(builder, "tree_macro"));
+  SetupView view;
+  view.init();
 
-    g_object_unref(builder);
+  SettingsStore store;
+  SetupController controller(view, store);
+  global_setup_controller_set(&controller);
+  controller.init();
+
+  view.showMainWindow();
+  gtk_main();
+
+  return 0;
 }
-
-int main(int argc, char** argv)
-{
-    setlocale(LC_ALL, "");
-    bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
-    textdomain(GETTEXT_PACKAGE);
-
-    ibus_unikey_config_init();
-
-    gtk_init(&argc, &argv);
-    gtk_window_set_default_icon_from_file(PKGDATADIR "/icons/ibus-unikey.svg", NULL);
-
-    init_gtk_builder();
-
-    gtk_widget_show_all(mwin);
-    gtk_main();
-
-    return 0;
-}
-
