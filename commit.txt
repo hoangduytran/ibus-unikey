@@ -1,44 +1,79 @@
-refactor(ukengine): macro match decomposition, readability, and Doxygen comments
+refactor(readability): decompose engine paths, ukengine TUs, and macro interchange
 
 ## Why
 
-- `UkEngine::macroMatch` had grown hard to follow; boolean spans and the outer scan loop
-  needed clearer names and smaller units.
-- Project convention (aligned with `mactab.cpp` and related TUs) uses Doxygen `@brief`,
-  `@param` / `@return`, and numbered **Progression** blocks for non-trivial functions.
+- Apply the readability plan: named booleans and `static`/private helpers so intent is
+  visible before mechanics, without changing observable behavior (preedit, commits,
+  macros, charsets).
+- Follow existing project style (e.g. `mactab.cpp`-style structure and Doxygen where
+  already used in touched areas).
 
 ## What changed
 
-### `ukengine/engine/engine_components/macro.cpp`
+### IBus engine and `UkEngine` surface
 
-- Split macro matching into focused helpers: `macroMatchPreSkip`, `macroMatchScanForHit`,
-  `macroMatchBuildExpansionStdVn`, `macroMatchFlushOutput`, plus `macroMatchWordInfoToStdKey`,
-  `macroMatchMacroKeyFitsEngine`, `macroMatchRewindToWordBoundary`,
-  `macroMatchBuildFoldLookupKey`, `macroMatchLookupAtSpan`.
-- Anonymous-namespace helpers for casing and length (`classifyMacroKeyCase`,
-  `applyMacroCaseToBuffer`, title-casing after ASCII space, etc.).
-- Use descriptive locals (e.g. `nextCandidateStartIndex`, `wordSpanStartIndex`,
-  `shiftIsDown`, `roomLeftInOutBuffer`).
-- Outer scan loop semantics preserved: after each failed attempt, advance
-  `nextCandidateStartIndex = wordSpanStartIndex - 1` (matches original post-rewind `i--`).
-- **`@file`** TU overview with high-level **Progression** for the macro pipeline; each
-  function documented with **Progression** steps.
-- Doc correction: clarify `wordSpanStartIndex == -1` (suffix key uses `lookup(key+1)`;
-  `key[0]` not filled from buffer).
+- `src/engine.cpp`: clearer dispatch for `ibus_unikey_engine_process_key_event` /
+  preedit path; static predicate-style helpers where it reduced dense modifier/keyval
+  conditions.
+- `include/ukengine/engine/ukengine.h`: declarations aligned with refactored
+  `UkEngine` implementation split.
 
-### `include/ukengine/engine/ukengine.h`
+### Core engine (`ukengine/`)
 
-- Declare private macro helpers with `@brief` (and **Progression** on `macroMatch`) so the
-  header matches the implementation split.
+- `ukengine/engine/engine_components/diacritic_processing.cpp`: break up large `process*`
+  methods; shared vowel/tone patterns use named guards and helpers where duplication
+  was obvious.
+- `ukengine/engine/engine_components/append.cpp`: structure `processAppend` and related
+  append logic with clearer phases and locals.
+- `ukengine/engine/engine_components/process_io.cpp`: decompose `UkEngine::process` and
+  related output sequencing for easier review.
 
-## Files touched
+### I/O and charset
 
-- `ukengine/engine/engine_components/macro.cpp`
-- `include/ukengine/engine/ukengine.h`
-- `commit.txt`
+- `ukengine/core/byteio.cpp`: flatten `FileBIStream` multi-byte reads (`getNextW` /
+  `getNextDW` / `peekNextW`) and clarify EOF predicates on `getNext`/`peekNext`.
+- `ukengine/mapping/charset_components/charset_unicode.cpp`: extract
+  `tryConsumeCStyleHexEscapeAfterBackslash` for `UnicodeCStringCharset::nextInput`
+  (`\x` / `\X` hex escapes only; HTML `&#` / NCR paths unchanged).
+
+### Macro table load/save
+
+- `ukengine/mapping/macro_cache.cpp`: `tryLoad` / `persist` use phased `const bool`
+  checks and single `fclose` on the cache file path where applicable.
+- `ukengine/mapping/mactab.cpp`: `writeToFile`, `loadFromFile`,
+  `decodeMacroKeyAndText` use explicit success flags (`textExportOk`, sidecar hydrate,
+  UTF-8 upgrade branch, decoded key/text pairs).
+- `ukengine/mapping/text_macro_format.cpp`: named flags for open and header reads on
+  import/export.
+
+### Setup macro interchange
+
+- `setup/macro_file_io.cpp`: `importArgumentsValid` / `exportArgumentsValid` for early
+  `GError` paths.
+- `setup/macro_handler_csv.cpp`: `delimited_row_looks_like_macro_header`; CSV parse/fini
+  success locals; repair accidental stray `§` in source after `return FALSE`.
+- `setup/macro_handler_plist.cpp`: named booleans around plist parse and root-shape
+  handling.
 
 ## Verify
 
 ```bash
-cmake --build build -j$(nproc) && ctest --output-on-failure -R ukengine
+cmake --build build -j$(nproc) && ctest --output-on-failure
 ```
+
+## Files touched
+
+- `src/engine.cpp`
+- `include/ukengine/engine/ukengine.h`
+- `ukengine/engine/engine_components/diacritic_processing.cpp`
+- `ukengine/engine/engine_components/append.cpp`
+- `ukengine/engine/engine_components/process_io.cpp`
+- `ukengine/core/byteio.cpp`
+- `ukengine/mapping/charset_components/charset_unicode.cpp`
+- `ukengine/mapping/macro_cache.cpp`
+- `ukengine/mapping/mactab.cpp`
+- `ukengine/mapping/text_macro_format.cpp`
+- `setup/macro_file_io.cpp`
+- `setup/macro_handler_csv.cpp`
+- `setup/macro_handler_plist.cpp`
+- `commit.txt`

@@ -294,8 +294,10 @@ bool CMacroTable::decodeMacroKeyAndText(const void *key, const void *text,
                                          int charset,
                                          std::vector<StdVnChar> &outKey,
                                          std::vector<StdVnChar> &outText) {
-  if (!utf8ToStdVnVector(key, charset, outKey) ||
-      !utf8ToStdVnVector(text, charset, outText)) {
+  const bool keyDecodedOk = utf8ToStdVnVector(key, charset, outKey);
+  const bool textDecodedOk = utf8ToStdVnVector(text, charset, outText);
+  const bool pairDecodedOk = keyDecodedOk && textDecodedOk;
+  if (!pairDecodedOk) {
     setLastError(MACTAB_ERR_CONVERT, "Conversion failed");
     return false;
   }
@@ -394,13 +396,12 @@ int CMacroTable::addItem(const char *item, int charset) {
  * TEXT bytes on disk.
  */
 int CMacroTable::writeToFile(const char *fname) {
-  TextMacroFormat textFmt; // create a new text format
-  // export the table to the file
-  if (textFmt.exportToPath(fname, *this) != 1) // if the export fails
-    return 0;                                  // return 0 if the export fails
-  CacheManagement::persist(fname, *this);      // persist the table
-  // return 1 if the export is successful
-  return 1; // return 1 if the export is successful
+  TextMacroFormat textFmt;
+  const bool textExportOk = (textFmt.exportToPath(fname, *this) == 1);
+  if (!textExportOk)
+    return 0;
+  CacheManagement::persist(fname, *this);
+  return 1;
 }
 
 /**
@@ -419,29 +420,30 @@ int CMacroTable::writeToFile(const char *fname) {
  * 5. Already UTF-8: refresh sidecar with `persist` only, return 1.
  */
 int CMacroTable::loadFromFile(const char *fname) {
-  resetContent(); // reset the table
+  resetContent();
 
-  // try to load the table from the file
-  if (CacheManagement::tryLoad(fname, *this)) { // if the load is successful
-    setLastError(MACTAB_ERR_OK,
-                 ""); // set the last error code and message to OK
-    return 1;         // return 1 if the load is successful
+  const bool sidecarHydrateOk = CacheManagement::tryLoad(fname, *this);
+  if (sidecarHydrateOk) {
+    setLastError(MACTAB_ERR_OK, "");
+    return 1;
   }
 
-  resetContent(); // reset the table
+  resetContent();
 
-  int version = 0;         // set the version to 0
-  TextMacroFormat textFmt; // create a new text format
-  // import the table from the file
-  if (textFmt.importFromPath(fname, *this, &version) !=
-      1)      // if the import fails
-    return 0; // return 0 if the import fails
+  int version = 0;
+  TextMacroFormat textFmt;
+  const bool textImportOk =
+      (textFmt.importFromPath(fname, *this, &version) == 1);
+  if (!textImportOk)
+    return 0;
 
-  setLastError(MACTAB_ERR_OK, ""); // set the last error code and message to OK
+  setLastError(MACTAB_ERR_OK, "");
 
-  if (version != TextMacroFormat::kUtf8Version) // if the version is not UTF-8
-    return writeToFile(fname); // return the result of the write to file
+  const bool needsUtf8DiskUpgrade =
+      (version != TextMacroFormat::kUtf8Version);
+  if (needsUtf8DiskUpgrade)
+    return writeToFile(fname);
 
-  CacheManagement::persist(fname, *this); // persist the table
-  return 1; // return 1 if the import is successful
+  CacheManagement::persist(fname, *this);
+  return 1;
 }

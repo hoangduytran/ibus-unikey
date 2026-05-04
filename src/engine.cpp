@@ -148,9 +148,9 @@ static void ibus_unikey_engine_init(IBusUnikeyEngine *unikey)
  */
 static IBusProperty *find_prop_from_list(IBusPropList *list, const char *key)
 {
-    for (guint i = 0; i < list->properties->len; i++)
+    for (guint propIndex = 0; propIndex < list->properties->len; propIndex++)
     {
-        IBusProperty *prop = ibus_prop_list_get(list, i);
+        IBusProperty *prop = ibus_prop_list_get(list, propIndex);
         if (prop == NULL)
             return NULL;
         if (strcmp(ibus_property_get_key(prop), key) == 0)
@@ -166,31 +166,30 @@ static IBusProperty *find_prop_from_list(IBusPropList *list, const char *key)
  */
 static void ibus_unikey_engine_update_property_list(IBusUnikeyEngine *unikey)
 {
-    bool b;
     IBusProperty *prop;
 
-    b = unikey->ukopt.spellCheckEnabled;
+    const bool spellCheckEnabled = unikey->ukopt.spellCheckEnabled;
     prop = find_prop_from_list(unikey->prop_list, CONFIG_SPELLCHECK);
     if (prop != NULL)
     {
         ibus_property_set_state(prop,
-                                (b == 1) ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
+                                spellCheckEnabled ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
     }
 
-    b = unikey->ukopt.autoNonVnRestore;
+    const bool autoRestoreNonVietnamese = unikey->ukopt.autoNonVnRestore;
     prop = find_prop_from_list(unikey->prop_list, CONFIG_AUTORESTORENONVN);
     if (prop != NULL)
     {
         ibus_property_set_state(prop,
-                                (b == 1) ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
+                                autoRestoreNonVietnamese ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
     }
 
-    b = unikey->ukopt.macroEnabled;
+    const bool macroEnabled = unikey->ukopt.macroEnabled;
     prop = find_prop_from_list(unikey->prop_list, CONFIG_MACROENABLED);
     if (prop != NULL)
     {
         ibus_property_set_state(prop,
-                                (b == 1) ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
+                                macroEnabled ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
     }
 }
 
@@ -201,44 +200,44 @@ static void ibus_unikey_engine_update_property_list(IBusUnikeyEngine *unikey)
  */
 static void ibus_unikey_engine_load_config(IBusUnikeyEngine *unikey)
 {
-    gchar *str;
-    gboolean b;
+    gchar *configString = nullptr;
+    gboolean configBool = FALSE;
 
-    auto im = input_method_map.at("telex").first;
-    if (ibus_unikey_config_get_string(CONFIG_INPUTMETHOD, &str))
+    UkInputMethod inputMethod = input_method_map.at("telex").first;
+    if (ibus_unikey_config_get_string(CONFIG_INPUTMETHOD, &configString))
     {
-        auto p = input_method_map.at(std::string(str));
-        im = p.first;
-        g_free(str);
+        const auto methodEntry = input_method_map.at(std::string(configString));
+        inputMethod = methodEntry.first;
+        g_free(configString);
     }
-    unikey->im = im;
+    unikey->im = inputMethod;
 
-    auto oc = output_charset_map.at("unicode").first;
-    if (ibus_unikey_config_get_string(CONFIG_OUTPUTCHARSET, &str))
+    unsigned int outputCharset = output_charset_map.at("unicode").first;
+    if (ibus_unikey_config_get_string(CONFIG_OUTPUTCHARSET, &configString))
     {
-        auto p = output_charset_map.at(std::string(str));
-        oc = p.first;
-        g_free(str);
+        const auto charsetEntry = output_charset_map.at(std::string(configString));
+        outputCharset = charsetEntry.first;
+        g_free(configString);
     }
-    unikey->oc = oc;
+    unikey->oc = outputCharset;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_FREEMARKING, &b))
-        unikey->ukopt.freeMarking = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_FREEMARKING, &configBool))
+        unikey->ukopt.freeMarking = configBool;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_MODERNSTYLE, &b))
-        unikey->ukopt.modernStyle = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_MODERNSTYLE, &configBool))
+        unikey->ukopt.modernStyle = configBool;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_MACROENABLED, &b))
-        unikey->ukopt.macroEnabled = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_MACROENABLED, &configBool))
+        unikey->ukopt.macroEnabled = configBool;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_SPELLCHECK, &b))
-        unikey->ukopt.spellCheckEnabled = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_SPELLCHECK, &configBool))
+        unikey->ukopt.spellCheckEnabled = configBool;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_AUTORESTORENONVN, &b))
-        unikey->ukopt.autoNonVnRestore = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_AUTORESTORENONVN, &configBool))
+        unikey->ukopt.autoNonVnRestore = configBool;
 
-    if (ibus_unikey_config_get_boolean(CONFIG_STANDALONEW, &b))
-        unikey->process_w_at_begin = b;
+    if (ibus_unikey_config_get_boolean(CONFIG_STANDALONEW, &configBool))
+        unikey->process_w_at_begin = configBool;
 
     // load macro
     gchar *fn = get_macro_file();
@@ -258,15 +257,11 @@ static GObject *ibus_unikey_engine_constructor(GType type,
                                                guint n_construct_params,
                                                GObjectConstructParam *construct_params)
 {
-    IBusUnikeyEngine *unikey;
+    IBusUnikeyEngine *instance =
+        (IBusUnikeyEngine *)G_OBJECT_CLASS(parent_class)
+            ->constructor(type, n_construct_params, construct_params);
 
-    unikey = (IBusUnikeyEngine *)
-                 G_OBJECT_CLASS(parent_class)
-                     ->constructor(type,
-                                   n_construct_params,
-                                   construct_params);
-
-    return (GObject *)unikey;
+    return (GObject *)instance;
 }
 
 /**
@@ -402,10 +397,9 @@ static void ibus_unikey_engine_property_activate(IBusEngine *engine,
 
     if (strcmp(prop_name, "more-settings") == 0)
     {
-        int ret = 0;
-
-        ret = system(LIBEXECDIR "/ibus-setup-unikey &");
-        if (ret == -1)
+        const int setupSpawnStatus = system(LIBEXECDIR "/ibus-setup-unikey &");
+        const gboolean setupLaunchFailed = setupSpawnStatus == -1;
+        if (setupLaunchFailed)
         {
             g_print("Failed to open ibus-setup-unikey");
         }
@@ -531,21 +525,20 @@ static void ibus_unikey_engine_update_preedit_string(IBusEngine *engine, const g
  */
 static void ibus_unikey_engine_erase_chars(IBusEngine *engine, int count)
 {
-    int i = unikey->preeditstr->length();
+    int eraseEndIndex = unikey->preeditstr->length();
 
-    while (i > 0 && count > 0)
+    while (eraseEndIndex > 0 && count > 0)
     {
-        unsigned char code = unikey->preeditstr->at(i - 1);
+        const unsigned char utf8Byte = unikey->preeditstr->at(eraseEndIndex - 1);
 
-        // count down if code is the first byte of utf-8 char
+        // Decrement count when this byte starts a UTF-8 code point (not 10xxxxxx).
         // REF: http://en.wikipedia.org/wiki/UTF-8
-        if (code >> 6 != 2)
-        { // ignore 10xxxxxx
+        const gboolean isUtf8ContinuationByte = (utf8Byte >> 6) == 2;
+        if (!isUtf8ContinuationByte)
             count--;
-        }
-        i--;
+        eraseEndIndex--;
     }
-    unikey->preeditstr->erase(i);
+    unikey->preeditstr->erase(eraseEndIndex);
 }
 
 /**
@@ -561,34 +554,33 @@ static void ibus_unikey_engine_erase_chars(IBusEngine *engine, int count)
  */
 int latinToUtf(unsigned char *dst, unsigned char *src, int inSize, int *pOutSize)
 {
-    int i;
-    int outLeft;
-    unsigned char ch;
+    int outLeft = *pOutSize;
 
-    outLeft = *pOutSize;
-
-    for (i = 0; i < inSize; i++)
+    for (int srcIndex = 0; srcIndex < inSize; srcIndex++)
     {
-        ch = *src++;
-        if (ch < 0x80)
+        const unsigned char latinByte = *src++;
+        if (latinByte < 0x80)
         {
             outLeft -= 1;
-            if (outLeft >= 0)
-                *dst++ = ch;
+            const gboolean singleByteFits = outLeft >= 0;
+            if (singleByteFits)
+                *dst++ = latinByte;
         }
         else
         {
             outLeft -= 2;
-            if (outLeft >= 0)
+            const gboolean twoByteSeqFits = outLeft >= 0;
+            if (twoByteSeqFits)
             {
-                *dst++ = (0xC0 | ch >> 6);
-                *dst++ = (0x80 | (ch & 0x3F));
+                *dst++ = (0xC0 | latinByte >> 6);
+                *dst++ = (0x80 | (latinByte & 0x3F));
             }
         }
     }
 
     *pOutSize = outLeft;
-    return (outLeft >= 0);
+    const gboolean noOverflow = outLeft >= 0;
+    return noOverflow;
 }
 
 static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine *engine,
@@ -710,8 +702,10 @@ gboolean ibus_unikey_try_telex_standalone_w(IBusEngine *engine, guint keyval)
     const gboolean standalone_w_as_uw_disabled = !uk->process_w_at_begin;
     const gboolean at_word_start = UnikeyAtWordBeginning();
     const gboolean key_is_ascii_w = keyval == IBUS_w || keyval == IBUS_W;
-    if (!im_allows_standalone_w_rule || !standalone_w_as_uw_disabled || !at_word_start ||
-        !key_is_ascii_w)
+    const gboolean can_pass_standalone_w =
+        im_allows_standalone_w_rule && standalone_w_as_uw_disabled && at_word_start &&
+        key_is_ascii_w;
+    if (!can_pass_standalone_w)
         return FALSE;
 
     UnikeyPutChar(keyval);
@@ -727,8 +721,10 @@ gboolean ibus_unikey_handle_backspace_preedit(IBusEngine *engine)
 {
     UnikeyBackspacePress();
 
+    const gboolean no_backspace_requested = UnikeyBackspaces == 0;
+    const gboolean preedit_already_empty = unikey->preeditstr->empty();
     const gboolean engine_did_not_request_backspace =
-        UnikeyBackspaces == 0 || unikey->preeditstr->empty();
+        no_backspace_requested || preedit_already_empty;
     if (engine_did_not_request_backspace)
         return FALSE;
 
@@ -759,9 +755,13 @@ gboolean ibus_unikey_handle_printable_preedit(IBusEngine *engine, guint keyval,
     if (ibus_unikey_try_telex_standalone_w(engine, keyval))
         return TRUE;
 
+    const gboolean previous_key_was_without_shift = unikey->last_key_with_shift == false;
+    const gboolean shift_held_now = (modifiers & IBUS_SHIFT_MASK) != 0;
+    const gboolean key_is_space = keyval == IBUS_space;
+    const gboolean mid_word_not_at_beginning = !UnikeyAtWordBeginning();
     const gboolean shift_plus_space_mid_word =
-        unikey->last_key_with_shift == false && (modifiers & IBUS_SHIFT_MASK) != 0 &&
-        keyval == IBUS_space && !UnikeyAtWordBeginning();
+        previous_key_was_without_shift && shift_held_now && key_is_space &&
+        mid_word_not_at_beginning;
     const gboolean bare_shift_key_event =
         keyval == IBUS_Shift_L || keyval == IBUS_Shift_R;
     if (shift_plus_space_mid_word || bare_shift_key_event)
@@ -779,12 +779,18 @@ gboolean ibus_unikey_handle_printable_preedit(IBusEngine *engine, guint keyval,
 
     if (UnikeyBufChars > 0)
         ibus_unikey_preedit_append_unikey_output_bytes(engine);
-    else if (keyval != IBUS_Shift_L && keyval != IBUS_Shift_R)
+    else
     {
-        static int n;
-        static char s[6];
-        n = g_unichar_to_utf8(keyval, s);
-        unikey->preeditstr->append(s, n);
+        const gboolean key_is_left_shift = keyval == IBUS_Shift_L;
+        const gboolean key_is_right_shift = keyval == IBUS_Shift_R;
+        const gboolean key_is_bare_shift = key_is_left_shift || key_is_right_shift;
+        if (!key_is_bare_shift)
+        {
+            static int utf8Len;
+            static char utf8Buf[6];
+            utf8Len = g_unichar_to_utf8(keyval, utf8Buf);
+            unikey->preeditstr->append(utf8Buf, utf8Len);
+        }
     }
 
     if (ibus_unikey_preedit_try_commit_word_break(engine, keyval))
@@ -813,11 +819,10 @@ static gboolean ibus_unikey_engine_process_key_event(IBusEngine *engine,
                                                      guint keycode,
                                                      guint modifiers)
 {
-    static gboolean tmp;
-
     unikey = (IBusUnikeyEngine *)engine;
 
-    tmp = ibus_unikey_engine_process_key_event_preedit(engine, keyval, keycode, modifiers);
+    const gboolean event_consumed =
+        ibus_unikey_engine_process_key_event_preedit(engine, keyval, keycode, modifiers);
 
     const gboolean keyval_in_printable_ascii =
         keyval >= IBUS_space && keyval <= IBUS_asciitilde;
@@ -826,7 +831,7 @@ static gboolean ibus_unikey_engine_process_key_event(IBusEngine *engine,
     else
         unikey->last_key_with_shift = FALSE;
 
-    return tmp;
+    return event_consumed;
 }
 
 /**

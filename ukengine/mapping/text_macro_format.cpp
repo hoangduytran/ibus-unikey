@@ -299,13 +299,15 @@ MacroFormatId TextMacroFormat::id() const
 int TextMacroFormat::importFromPath(const char *path, CMacroTable &table, int *outSourceVersion)
 {
     FILE *f = openMacroFileRead(path);
-    if (!f) {
+    const bool openedForReadOk = (f != nullptr);
+    if (!openedForReadOk) {
         table.setLastError(MACTAB_ERR_IO, "Failed to open macro file for read");
         return 0;
     }
 
     int version = 0;
-    if (!readVersionHeader(f, version)) {
+    const bool versionHeaderDecodedOk = readVersionHeader(f, version);
+    if (!versionHeaderDecodedOk) {
         fclose(f);
         table.setLastError(MACTAB_ERR_IO, "Failed to read macro file header");
         return 0;
@@ -353,7 +355,8 @@ int TextMacroFormat::importFromPath(const char *path, CMacroTable &table, int *o
 int TextMacroFormat::exportToPath(const char *path, CMacroTable &table)
 {
     FILE *f = openMacroFileWrite(path);
-    if (!f) {
+    const bool openedForWriteOk = (f != nullptr);
+    if (!openedForWriteOk) {
         table.setLastError(MACTAB_ERR_IO, "Failed to open macro file for write");
         return 0;
     }

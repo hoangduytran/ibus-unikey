@@ -44,6 +44,9 @@
 
 #include <vector>
 
+/** Vowel sequence table row; defined in `engine_tables_shared.h`. */
+struct VowelSeqInfo;
+
 /**
  * @brief Shared immutable/global runtime data for all UniKey engine instances.
  *
@@ -290,6 +293,79 @@ protected:
      */
     int processHookWithUO(UkKeyEvent & ev);
 
+    void vowelApplySubsequences(int vowelSpanStart, const VowelSeqInfo &info);
+    void relocateToneIfMoved(int curTonePos, int newTonePos, int tone);
+    void finishRemovedDiacriticAppendRevert(UkKeyEvent &ev);
+    bool syllableValidForVowelSeq(VowelSeq vowelSeq) const;
+    bool hookUndoKeyMatches(int evType, VnLexiName currentHookLetter) const;
+    bool hookApplyKeyMatches(int evType, const VowelSeqInfo &vowelSeqInfo) const;
+    void readVowelSpanFromCursor(int &outVEnd, int &outVStart, VowelSeq &outVs,
+                                 int &outCurTonePos, int &outTone);
+    void hookWithUO_onHookU(VowelSeq vs, const VnLexiName *seqLetters, int vowelSpanStart, VowelSeq &newVs,
+                            bool &hookRemoved, bool &toneRemoved);
+    void hookWithUO_onHookO(VowelSeq vs, const VnLexiName *seqLetters, int vowelSpanStart, int vowelSpanEnd,
+                            VowelSeq &newVs, bool &hookRemoved, bool &toneRemoved);
+    void hookWithUO_onHookAll(VowelSeq vs, const VnLexiName *seqLetters, int vowelSpanStart, int vowelSpanEnd,
+                              VowelSeq &newVs, bool &hookRemoved, bool &toneRemoved);
+    bool roofStripRoofMark(VowelSeq vs, VnLexiName target, int vStart, VowelSeq &newVs,
+                           VowelSeqInfo *&pInfo, bool &roofRemoved, int &changePos);
+    bool hookStripHookMark(int evType, VowelSeq vs, int vStart, VowelSeq &newVs, VowelSeqInfo *&pInfo,
+                           bool &hookRemoved, int &changePos);
+    bool hookPlaceHookMark(int evType, int vStart, VowelSeq newVs, VowelSeqInfo *&pInfo, int &changePos);
+    bool roofPlaceRoofMark(VnLexiName target, int vStart, VowelSeq newVs, bool doubleChangeUO,
+                           VowelSeqInfo *&pInfo, int &changePos);
+    int processToneGiOrGin(UkKeyEvent &ev);
+    int processToneOnVowelSpan(UkKeyEvent &ev, int vowelSpanEnd, VowelSeq vowelSeq);
+    void processMapCharApplyUndoRepeatKey(UkKeyEvent &ev, WordInfo &entry, bool &undoRepeatStroke);
+    int processTelexWBranchMapChar(UkKeyEvent &ev, int capsLockIsOn, bool &usedAsMapChar);
+    int processTelexWBranchHook(UkKeyEvent &ev, int capsLockIsOn, bool &usedAsMapChar);
+    int processDdTryAbbrevNonVnD(UkKeyEvent &ev);
+    int processDdTryConsonantDOrDd(UkKeyEvent &ev);
+
+    /**
+     * @brief `ukcReset`: optional macro-on-enter (Win32), then `reset`.
+     */
+    int processAppendReset(UkKeyEvent &ev);
+    /**
+     * @brief `ukcNonVn`: VIQR escape path or plain non-Vn buffer append.
+     */
+    int processAppendNonVn(UkKeyEvent &ev);
+    /**
+     * @brief `ukcVn`: vowel vs consonant append (`q`/`g` + `u`/`i` nuance).
+     */
+    int processAppendVietnameseLetter(UkKeyEvent &ev);
+    /**
+     * @brief Extend vowel sequence after `vnw_v` / `vnw_cv` predecessor.
+     * @return `-1` to fall through to common `appendVowel` footer; else return immediately.
+     */
+    int appendVowelAfterVOrCv(UkKeyEvent &ev, WordInfo &entry, WordInfo &prev,
+                              VnLexiName lowerSym, VnLexiName canSym);
+    /**
+     * @brief Start vowel after consonant-only predecessor (`vnw_c`).
+     * @return `-1` to fall through to footer; `0`/`1` to return from `appendVowel`.
+     */
+    int appendVowelAfterConsonantForm(UkKeyEvent &ev, WordInfo &entry, WordInfo &prev,
+                                      VnLexiName lowerSym, VnLexiName canSym);
+    /**
+     * @brief Append consonant after vowel-centered predecessor (`vnw_v` / `vnw_cv`).
+     */
+    int appendConsonantAfterVowelForm(UkKeyEvent &ev, WordInfo &entry, WordInfo &prev,
+                                      VnLexiName lowerSym);
+    /**
+     * @brief Append consonant extending `vnw_c` / `vnw_vc` / `vnw_cvc`.
+     */
+    int appendConsonantAfterClusterForm(UkKeyEvent &ev, WordInfo &entry, WordInfo &prev,
+                                        VnLexiName lowerSym);
+
+    /**
+     * @brief Dispatch through VIQR escape path or `UkKeyProcList` handler.
+     */
+    int processThroughEscapeGate(UkKeyEvent &ev);
+    /**
+     * @brief Non-spell-check mode: new Vietnamese letter after failed spell tail.
+     */
+    void processApplyNoSpellCheckFallback(UkKeyEvent &ev, int &ret);
+
     /**
      * @brief Attempt macro table match for the current input sequence.
      *
@@ -362,7 +438,7 @@ protected:
     /**
      * @brief Determine tone insertion position for a vowel sequence.
      */
-    int getTonePosition(VowelSeq vs, bool terminated);
+    int getTonePosition(VowelSeq vowelSeq, bool vowelSpanEndsAtCursor);
 
     /**
      * @brief Reset internal keystroke event buffer.
@@ -383,6 +459,21 @@ protected:
      * @brief Process end-of-word event and finalize output transformation.
      */
     int processWordEnd(UkKeyEvent & ev);
+
+    /**
+     * @brief True when backspace only drops the cursor (no vowel-span tone move).
+     *
+     * Covers word-start, empty/non-Vn/consonant tails, or consonant-cluster syllable shapes.
+     */
+    bool backspaceAtSimpleBoundary() const;
+    /**
+     * @brief True when tone must move to a new slot after removing the trailing grapheme.
+     */
+    bool backspaceShouldRelocateTone(int tone, int curTonePos, int newTonePos) const;
+    /**
+     * @brief Decrement `m_current`, copy `m_backs`, sync keystrokes; returns `(backs > 1)`.
+     */
+    int backspaceCommitDecrementAndSync(int &backs, int &outSize);
 
     /**
      * @brief Synchronize internal key stroke buffer states after output update.

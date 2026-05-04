@@ -274,31 +274,28 @@ bool CacheManagement::tryLoad(const char *macroTextPath, CMacroTable &table)
     if (!cacheFile)
         return false;
 
-    if (!readCacheMagic(cacheFile)) {
-        fclose(cacheFile);
-        return false;
-    }
-
     uint64_t storedFingerprint = 0;
     uint32_t entryCount = 0;
-    if (!readValidatedCacheHeader(cacheFile, &storedFingerprint, &entryCount)) {
-        fclose(cacheFile);
-        return false;
-    }
-
-    const uint64_t currentTextFingerprint = fnv1a64File(macroTextPath);
-    if (currentTextFingerprint != storedFingerprint || currentTextFingerprint == 0) {
-        fclose(cacheFile);
-        return false;
-    }
+    const bool magicOk = readCacheMagic(cacheFile);
+    const bool headerOk =
+        magicOk &&
+        readValidatedCacheHeader(cacheFile, &storedFingerprint, &entryCount);
+    const uint64_t currentTextFingerprint =
+        headerOk ? fnv1a64File(macroTextPath) : 0ULL;
+    const bool fingerprintMatchesTextFile =
+        headerOk && currentTextFingerprint == storedFingerprint &&
+        currentTextFingerprint != 0ULL;
 
     std::vector<MacroEntry> loadedEntries;
-    if (!loadMacroEntriesFromCache(cacheFile, entryCount, &loadedEntries)) {
-        fclose(cacheFile);
-        return false;
-    }
+    const bool entriesOk = fingerprintMatchesTextFile &&
+                           loadMacroEntriesFromCache(cacheFile, entryCount,
+                                                     &loadedEntries);
 
     fclose(cacheFile);
+
+    if (!entriesOk)
+        return false;
+
     table.m_entries = std::move(loadedEntries);
     table.rebuildLookupMap();
     return true;
@@ -320,12 +317,14 @@ void CacheManagement::persist(const char *macroTextPath, const CMacroTable &tabl
     const uint32_t entryCount = (uint32_t)table.getCount();
     writeCacheFixedHeader(cacheFile, textFingerprint, entryCount);
 
-    if (!writeMacroTableRows(cacheFile, table, entryCount)) {
-        fclose(cacheFile);
+    const bool rowsWrittenOk =
+        writeMacroTableRows(cacheFile, table, entryCount);
+    fclose(cacheFile);
+
+    if (!rowsWrittenOk) {
         remove(tempSidecarPath.c_str());
         return;
     }
 
-    fclose(cacheFile);
     replaceSidecarFromTemp(sidecarPath, tempSidecarPath);
 }

@@ -104,7 +104,8 @@ int UnicodeCharset::nextInput(ByteInStream &is, StdVnChar &stdChar,
 							  int &bytesRead)
 {
 	UnicodeChar uniCh;
-	if (!is.getNextW(uniCh))
+	const bool streamHasWideChar = is.getNextW(uniCh);
+	if (!streamHasWideChar)
 	{
 		bytesRead = 0;
 		return 0;
@@ -917,6 +918,37 @@ int UnicodeHexCharset::putChar(ByteOutStream &os, StdVnChar stdChar,
 	return ret;
 }
 
+/**
+ * @brief If @a leadingByte is backslash, optionally consume `x`/`X` and up to four hex digits from @a is.
+ *
+ * When the stream does not continue with C-style hex, leaves @a uniCh as set by the caller and does
+ * not read further. Otherwise replaces @a uniCh with the parsed code point and increments
+ * @a bytesRead for each additional byte consumed after @a leadingByte.
+ */
+static void tryConsumeCStyleHexEscapeAfterBackslash(ByteInStream &is,
+													unsigned char leadingByte,
+													UnicodeChar &uniCh,
+													int &bytesRead)
+{
+	if (leadingByte != '\\')
+		return;
+	unsigned char ch;
+	if (!is.peekNext(ch) || (ch != 'x' && ch != 'X'))
+		return;
+	is.getNext(ch);
+	bytesRead++;
+	UKWORD code = 0;
+	int digits = 0;
+	while (is.peekNext(ch) && isxdigit(ch) && digits < 4)
+	{
+		is.getNext(ch);
+		bytesRead++;
+		code = (code << 4) + hexDigitValue(ch);
+		digits++;
+	}
+	uniCh = (UnicodeChar)code;
+}
+
 /////////////////////////////////
 // Class UnicodeCStringCharset  /
 /////////////////////////////////
@@ -961,37 +993,7 @@ int UnicodeCStringCharset::nextInput(ByteInStream &is, StdVnChar &stdChar,
 	   '\\X' we will parse up to four hexadecimal digits and
 	   overwrite `uniCh` with the parsed value. */
 	uniCh = ch;
-
-	/* Handle C-style hexadecimal escape \xHHHH (case-insensitive).
-	   We only enter parsing mode if the first byte was a backslash. */
-	if (ch == '\\')
-	{
-		/* Peek the next byte to avoid consuming it unless it is an
-		   'x' or 'X'. peekNext does not advance the stream. */
-		if (is.peekNext(ch) && (ch == 'x' || ch == 'X'))
-		{
-			/* Consume the 'x'/'X' marker and account for the byte. */
-			is.getNext(ch);
-			bytesRead++;
-
-			/* Accumulate up to four hex digits into `code`. The loop
-			   peeks before reading to ensure we stop at non-hex
-			   characters or after four digits. */
-			UKWORD code = 0;
-			int digits = 0;
-			while (is.peekNext(ch) && isxdigit(ch) && digits < 4)
-			{
-				is.getNext(ch);							// consume the hex digit
-				bytesRead++;							// update consumed-byte count
-				code = (code << 4) + hexDigitValue(ch); // append nibble
-				digits++;
-			}
-
-			/* Replace the candidate Unicode value with the parsed code
-			   (if any digits were read, otherwise code==0). */
-			uniCh = code;
-		}
-	}
+	tryConsumeCStyleHexEscapeAfterBackslash(is, ch, uniCh, bytesRead);
 
 	// translate to StdVnChar
 	UKDWORD key = uniCh;

@@ -187,20 +187,23 @@ gboolean PlistTextReplacementMacroHandler::import_from_path(const gchar *path_ut
     raw.erase(0, 3);
 
   plist_t root = nullptr;
-  plist_err_t plist_error;
-  if (is_binary_plist_prefix(raw))
-    plist_error = plist_from_bin(raw.data(), (uint32_t)raw.size(), &root);
-  else
-    plist_error = plist_from_xml(raw.data(), (uint32_t)raw.size(), &root);
+  const plist_err_t plist_error =
+      is_binary_plist_prefix(raw)
+          ? plist_from_bin(raw.data(), (uint32_t)raw.size(), &root)
+          : plist_from_xml(raw.data(), (uint32_t)raw.size(), &root);
 
-  if (plist_error != PLIST_ERR_SUCCESS || !root) {
+  const bool plistDocumentParsedOk =
+      plist_error == PLIST_ERR_SUCCESS && root != nullptr;
+  if (!plistDocumentParsedOk) {
     if (root)
       plist_free(root);
     macro_interchange::fail(err, "Could not parse property list (XML or binary)");
     return FALSE;
   }
 
-  if (!import_macros_from_plist_root(root, table, stats)) {
+  const bool rootShapeAcceptedForMacros =
+      import_macros_from_plist_root(root, table, stats);
+  if (!rootShapeAcceptedForMacros) {
     plist_free(root);
     macro_interchange::fail(err,
                             "Plist macro file must contain an array (or one replacement dictionary) at the root");

@@ -54,6 +54,26 @@ void header_ascii_lowercase(std::string *cell) {
 }
 
 /**
+ * @brief True when the first two column headers match trigger/phrase synonyms (case-insensitive).
+ *
+ * Aligns with legacy import: `trigger`/`abbreviation` in column 0 and `content`/`expansion` in 1.
+ */
+bool delimited_row_looks_like_macro_header(const std::string &raw_cell0,
+                                           const std::string &raw_cell1) {
+  std::string cell0 = raw_cell0;
+  std::string cell1 = raw_cell1;
+  trim_ascii_edges(&cell0);
+  trim_ascii_edges(&cell1);
+  header_ascii_lowercase(&cell0);
+  header_ascii_lowercase(&cell1);
+  const bool col0_is_trigger_label =
+      (cell0 == "trigger" || cell0 == "abbreviation");
+  const bool col1_is_content_label =
+      (cell1 == "content" || cell1 == "expansion");
+  return col0_is_trigger_label && col1_is_content_label;
+}
+
+/**
  * @brief User data for libcsv callbacks while importing one file.
  *
  * Accumulates fields into `current_row` until the row callback runs, then maps two columns into
@@ -93,14 +113,7 @@ void finish_import_row(DelimitedImportContext *ctx) {
   std::vector<std::string> &row = ctx->current_row;
 
   if (ctx->expect_header_or_first_data_row && row.size() >= 2) {
-    std::string header_cell_0 = row[0];
-    std::string header_cell_1 = row[1];
-    trim_ascii_edges(&header_cell_0);
-    trim_ascii_edges(&header_cell_1);
-    header_ascii_lowercase(&header_cell_0);
-    header_ascii_lowercase(&header_cell_1);
-    if ((header_cell_0 == "trigger" || header_cell_0 == "abbreviation") &&
-        (header_cell_1 == "content" || header_cell_1 == "expansion")) {
+    if (delimited_row_looks_like_macro_header(row[0], row[1])) {
       ctx->trigger_column_index = 0;
       ctx->content_column_index = 1;
       ctx->expect_header_or_first_data_row = false;
@@ -122,7 +135,9 @@ void finish_import_row(DelimitedImportContext *ctx) {
     ctx->stats->attempted++;
   const int add_item_result =
       ctx->table->addItem(trigger_utf8.c_str(), phrase_utf8.c_str(), CONV_CHARSET_UNIUTF8);
-  if (add_item_result >= 0) {
+  
+  const bool addItemResultIsNonNegative = add_item_result >= 0;
+  if (addItemResultIsNonNegative) {
     if (ctx->stats)
       ctx->stats->imported++;
   } else if (ctx->stats) {
@@ -146,6 +161,7 @@ bool append_libcsv_quoted_field(std::string *out, const std::string &field_utf8)
   const size_t required_len = csv_write(nullptr, 0, field_utf8.data(), field_utf8.size());
   if (required_len == SIZE_MAX)
     return false;
+
   const size_t offset = out->size();
   out->resize(offset + required_len);
   const size_t written =
@@ -164,6 +180,7 @@ extern "C" void delimited_import_field_cb(void *field_bytes, size_t field_byte_c
   auto *ctx = static_cast<DelimitedImportContext *>(userdata);
   if (ctx->parse_failed)
     return;
+
   ctx->current_row.emplace_back(static_cast<const char *>(field_bytes), field_byte_count);
 }
 
@@ -219,20 +236,22 @@ gboolean DelimitedTextMacroHandler::import_from_path(const gchar *path_utf8, CMa
 
   const size_t consumed =
       csv_parse(parser, raw.data(), raw.size(), delimited_import_field_cb, delimited_import_row_cb, &ctx);
-  if (consumed != raw.size()) {
+  const bool parseConsumedEntireBuffer = (consumed == raw.size());
+  if (!parseConsumedEntireBuffer) {
     ctx.parse_failed = true;
     macro_interchange::fail(err, csv_strerror(csv_error(parser)));
     csv_free(parser);
     return FALSE;
   }
 
-  if (csv_fini(parser, delimited_import_field_cb, delimited_import_row_cb, &ctx) != 0) {
+  const bool finiOk =
+      csv_fini(parser, delimited_import_field_cb, delimited_import_row_cb, &ctx) == 0;
+  csv_free(parser);
+  if (!finiOk) {
     macro_interchange::fail(err, "CSV parser finalization failed");
-    csv_free(parser);
     return FALSE;
   }
 
-  csv_free(parser);
   return TRUE;
 }
 
@@ -261,6 +280,7 @@ gboolean DelimitedTextMacroHandler::export_to_path(const gchar *path_utf8, CMacr
 
   if (!append_cell("trigger"))
     return FALSE;
+
   output.push_back(delim_);
   if (!append_cell("content"))
     return FALSE;
@@ -269,16 +289,20 @@ gboolean DelimitedTextMacroHandler::export_to_path(const gchar *path_utf8, CMacr
   for (int row_index = 0; row_index < row_count; row_index++) {
     const int sorted_row_index = order[(size_t)row_index];
     std::string trigger_utf8, phrase_utf8;
+
     if (!macro_interchange::utf8_from_std_keytext(table->getKey(sorted_row_index), &trigger_utf8) ||
         !macro_interchange::utf8_from_std_keytext(table->getText(sorted_row_index), &phrase_utf8)) {
       macro_interchange::fail(err, "Could not encode macro row for CSV/TSV export");
       return FALSE;
     }
+
     if (!append_cell(trigger_utf8))
       return FALSE;
+
     output.push_back(delim_);
     if (!append_cell(phrase_utf8))
       return FALSE;
+
     output.push_back('\n');
   }
 

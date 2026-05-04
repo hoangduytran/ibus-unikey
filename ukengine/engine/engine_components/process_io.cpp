@@ -84,6 +84,41 @@ int UkEngine::processNoSpellCheck(UkKeyEvent &ev)
     markChange(m_current);
     return 1;
 }
+
+int UkEngine::processThroughEscapeGate(UkKeyEvent &ev)
+{
+    if (!m_toEscape)
+        return (this->*UkKeyProcList[ev.evType])(ev);
+
+    m_toEscape = false;
+    const bool missingComposition = m_current < 0;
+    const bool escapeOrNormalTyping =
+        ev.evType == vneNormal || ev.evType == vneEscChar;
+    if (missingComposition || escapeOrNormalTyping)
+        return processAppend(ev);
+
+    m_current--;
+    processAppend(ev);
+    markChange(m_current);
+    return 1;
+}
+
+void UkEngine::processApplyNoSpellCheckFallback(UkKeyEvent &ev, int &ret)
+{
+    const bool vietModeEnabled = m_pCtrl->vietKey;
+    const bool hasActiveSlot = m_current >= 0;
+    const bool compositionTailIsNonVn =
+        hasActiveSlot && m_buffer[m_current].form == vnw_nonVn;
+    const bool incomingIsVietnameseLetter = ev.chType == ukcVn;
+    const bool spellCheckInactiveOrSingleWordMode =
+        !m_pCtrl->options.spellCheckEnabled || m_singleMode;
+
+    if (!vietModeEnabled || !compositionTailIsNonVn || !incomingIsVietnameseLetter ||
+        !spellCheckInactiveOrSingleWordMode)
+        return;
+
+    ret = processNoSpellCheck(ev);
+}
 //----------------------------------------------------------
 /**
  * @brief Main entrypoint for processing a raw key code through UniKey.
@@ -111,48 +146,13 @@ int UkEngine::process(unsigned int keyCode, int &backs, unsigned char *outBuf, i
 
     m_pCtrl->input.keyCodeToEvent(keyCode, ev);
 
-    int ret;
-    if (!m_toEscape)
-    {
-        ret = (this->*UkKeyProcList[ev.evType])(ev);
-    }
-    else
-    {
-        m_toEscape = false;
-        if (m_current < 0 || ev.evType == vneNormal || ev.evType == vneEscChar)
-        {
-            ret = processAppend(ev);
-        }
-        else
-        {
-            m_current--;
-            processAppend(ev);
-            markChange(m_current); // this will assign m_backs to 1 and mark the character for output
-            ret = 1;
-        }
-    }
+    int ret = processThroughEscapeGate(ev);
 
-    if (m_pCtrl->vietKey &&
-        m_current >= 0 && m_buffer[m_current].form == vnw_nonVn &&
-        ev.chType == ukcVn &&
-        (!m_pCtrl->options.spellCheckEnabled || m_singleMode))
-    {
-
-        // The spell check has failed, but because we are in non-spellcheck mode,
-        // we consider the new character as the beginning of a new word
-        ret = processNoSpellCheck(ev);
-        /*
-        if ((!m_pCtrl->options.spellCheckEnabled || m_singleMode) ||
-            ( !m_reverted &&
-              (m_current < 1 || m_buffer[m_current-1].form != vnw_nonVn)) ) {
-
-            ret = processNoSpellCheck(ev);
-        }
-        */
-    }
+    processApplyNoSpellCheckFallback(ev, ret);
 
     // we add key to key buffer only if that key has not caused a reset
-    if (m_current >= 0)
+    const bool hasActiveSlot = m_current >= 0;
+    if (hasActiveSlot)
     {
         ev.chType = m_pCtrl->input.getCharType(ev.keyCode);
         m_keyCurrent++;
@@ -160,7 +160,8 @@ int UkEngine::process(unsigned int keyCode, int &backs, unsigned char *outBuf, i
         m_keyStrokes[m_keyCurrent].converted = (ret && !m_keyRestored);
     }
 
-    if (ret == 0)
+    const bool noOutput = ret == 0;
+    if (noOutput)
     {
         backs = 0;
         outSize = 0;
@@ -203,7 +204,8 @@ int UkEngine::writeOutput(unsigned char *outBuf, int &outSize)
 
     for (i = m_changePos; i <= m_current; i++)
     {
-        if (m_buffer[i].vnSym != vnl_nonVnChar)
+        const bool isNonVnChar = m_buffer[i].vnSym != vnl_nonVnChar;
+        if (isNonVnChar)
         {
             // process vn symbol
             stdChar = m_buffer[i].vnSym + VnStdCharOffset;
@@ -217,7 +219,8 @@ int UkEngine::writeOutput(unsigned char *outBuf, int &outSize)
             stdChar = IsoToStdVnChar(m_buffer[i].keyCode);
         }
 
-        if (stdChar != INVALID_STD_CHAR)
+        const bool stdCharIsValid = stdChar != INVALID_STD_CHAR;
+        if (stdCharIsValid)
             ret = pCharset->putChar(os, stdChar, bytesWritten);
     }
 
@@ -240,11 +243,12 @@ int UkEngine::getSeqSteps(int first, int last)
 {
     StdVnChar stdChar;
 
-    if (last < first)
+    const bool lastIsBeforeFirst = last < first;
+    if (lastIsBeforeFirst)
         return 0;
 
-    if (m_pCtrl->charsetId == CONV_CHARSET_XUTF8 ||
-        m_pCtrl->charsetId == CONV_CHARSET_UNICODE)
+    const bool charsetSupportsTone = m_pCtrl->charsetId == CONV_CHARSET_XUTF8 || m_pCtrl->charsetId == CONV_CHARSET_UNICODE;
+    if (charsetSupportsTone)
         return (last - first + 1);
 
     StringBOStream os(0, 0);
@@ -255,7 +259,8 @@ int UkEngine::getSeqSteps(int first, int last)
 
     for (i = first; i <= last; i++)
     {
-        if (m_buffer[i].vnSym != vnl_nonVnChar)
+        const bool isNonVnChar = m_buffer[i].vnSym != vnl_nonVnChar;
+        if (isNonVnChar)
         {
             // process vn symbol
             stdChar = m_buffer[i].vnSym + VnStdCharOffset;
@@ -269,12 +274,14 @@ int UkEngine::getSeqSteps(int first, int last)
             stdChar = m_buffer[i].keyCode;
         }
 
-        if (stdChar != INVALID_STD_CHAR)
+        const bool stdCharIsValid = stdChar != INVALID_STD_CHAR;
+        if (stdCharIsValid)
             pCharset->putChar(os, stdChar, bytesWritten);
     }
 
     int len = os.getOutBytes();
-    if (m_pCtrl->charsetId == CONV_CHARSET_UNIDECOMPOSED)
+    const bool charsetUnidecomposed = m_pCtrl->charsetId == CONV_CHARSET_UNIDECOMPOSED;
+    if (charsetUnidecomposed)
         len = len / 2;
     return len;
 }
@@ -287,7 +294,8 @@ int UkEngine::getSeqSteps(int first, int last)
  */
 void UkEngine::markChange(int pos)
 {
-    if (pos < m_changePos)
+    const bool posIsBeforeChangePos = pos < m_changePos;
+    if (posIsBeforeChangePos)
     {
         m_backs += getSeqSteps(pos, m_changePos - 1);
         m_changePos = pos;
@@ -304,14 +312,22 @@ void UkEngine::markChange(int pos)
 void UkEngine::synchKeyStrokeBuffer()
 {
     // synchronize with key-stroke buffer
-    if (m_keyCurrent >= 0)
+    const bool hasActiveKeyStroke = m_keyCurrent >= 0;
+    if (hasActiveKeyStroke)
         m_keyCurrent--;
-    if (m_current >= 0 && m_buffer[m_current].form == vnw_empty)
+    const bool hasActiveSlot = m_current >= 0;
+    const bool slotIsEmpty = m_buffer[m_current].form == vnw_empty;
+    const bool slotIsEmptyAndHasActiveKeyStroke = hasActiveSlot && slotIsEmpty;
+    if (slotIsEmptyAndHasActiveKeyStroke)
     {
-        // in character buffer, we have reached a word break,
-        // so we also need to move key stroke pointer backward to corresponding word break
-        while (m_keyCurrent >= 0 && m_keyStrokes[m_keyCurrent].ev.chType != ukcWordBreak)
+        // Character buffer sits on an empty slot after a word break; align the
+        // keystroke cursor with the nearest preceding ukcWordBreak (or -1).
+        while (m_keyCurrent >= 0)
         {
+            const UkKeyEvent &stroke = m_keyStrokes[m_keyCurrent].ev;
+            const bool strokeEndsWord = stroke.chType == ukcWordBreak;
+            if (strokeEndsWord)
+                break;
             m_keyCurrent--;
         }
     }
@@ -320,6 +336,11 @@ void UkEngine::synchKeyStrokeBuffer()
 //---------------------------------------------
 /**
  * @brief Process a backspace event and update output/backspace counts.
+ *
+ * **Progression:**
+ * 1. Early-out when Vietnamese processing is off or buffer empty.
+ * 2. `backspaceAtSimpleBoundary` — drop cursor without relocating tone marks.
+ * 3. Otherwise compute vowel span / tone indices; relocate tone if `backspaceShouldRelocateTone`.
  *
  * @param backs[out] number of backspaces to emit
  * @param outBuf buffer to receive any replacement output
@@ -330,7 +351,9 @@ void UkEngine::synchKeyStrokeBuffer()
 int UkEngine::processBackspace(int &backs, unsigned char *outBuf, int &outSize, UkOutputType &outType)
 {
     outType = UkCharOutput;
-    if (!m_pCtrl->vietKey || m_current < 0)
+
+    const bool vietDisabledOrNoComposition = !m_pCtrl->vietKey || m_current < 0;
+    if (vietDisabledOrNoComposition)
     {
         backs = 0;
         outSize = 0;
@@ -341,50 +364,76 @@ int UkEngine::processBackspace(int &backs, unsigned char *outBuf, int &outSize, 
     m_changePos = m_current + 1;
     markChange(m_current);
 
-    if (m_current == 0 ||
-        m_buffer[m_current].form == vnw_empty ||
-        m_buffer[m_current].form == vnw_nonVn ||
-        m_buffer[m_current].form == vnw_c ||
-        m_buffer[m_current - 1].form == vnw_c ||
-        m_buffer[m_current - 1].form == vnw_cvc ||
-        m_buffer[m_current - 1].form == vnw_vc)
-    {
+    if (backspaceAtSimpleBoundary())
+        return backspaceCommitDecrementAndSync(backs, outSize);
 
-        m_current--;
-        backs = m_backs;
-        outSize = 0;
-        synchKeyStrokeBuffer();
-        return (backs > 1);
-    }
+    const int vowelClusterEndIndex = m_current - m_buffer[m_current].vOffset;
+    const VowelSeq vowelSeqAtCluster = m_buffer[vowelClusterEndIndex].vseq;
+    const int vowelSpanStartIndex =
+        vowelClusterEndIndex - VSeqList[vowelSeqAtCluster].len + 1;
+    const VowelSeq vowelSeqAfterCursorStep = m_buffer[m_current - 1].vseq;
+    const bool vowelClusterEndsAtCurrent = vowelClusterEndIndex == m_current;
+    const int toneIndexBeforeStep =
+        vowelSpanStartIndex +
+        getTonePosition(vowelSeqAtCluster, vowelClusterEndsAtCurrent);
+    const int toneIndexAfterCursorStep =
+        vowelSpanStartIndex + getTonePosition(vowelSeqAfterCursorStep, true);
+    const int toneMark = m_buffer[toneIndexBeforeStep].tone;
 
-    VowelSeq vs, newVs;
-    int curTonePos, newTonePos, tone, vStart, vEnd;
+    if (!backspaceShouldRelocateTone(toneMark, toneIndexBeforeStep, toneIndexAfterCursorStep))
+        return backspaceCommitDecrementAndSync(backs, outSize);
 
-    vEnd = m_current - m_buffer[m_current].vOffset;
-    vs = m_buffer[vEnd].vseq;
-    vStart = vEnd - VSeqList[vs].len + 1;
-    newVs = m_buffer[m_current - 1].vseq;
-    curTonePos = vStart + getTonePosition(vs, vEnd == m_current);
-    newTonePos = vStart + getTonePosition(newVs, true);
-    tone = m_buffer[curTonePos].tone;
-
-    if (tone == 0 || curTonePos == newTonePos ||
-        (curTonePos == m_current && m_buffer[m_current].tone != 0))
-    {
-        m_current--;
-        backs = m_backs;
-        outSize = 0;
-        synchKeyStrokeBuffer();
-        return (backs > 1);
-    }
-
-    markChange(newTonePos);
-    m_buffer[newTonePos].tone = tone;
-    markChange(curTonePos);
-    m_buffer[curTonePos].tone = 0;
+    markChange(toneIndexAfterCursorStep);
+    m_buffer[toneIndexAfterCursorStep].tone = toneMark;
+    markChange(toneIndexBeforeStep);
+    m_buffer[toneIndexBeforeStep].tone = 0;
     m_current--;
     synchKeyStrokeBuffer();
     backs = m_backs;
     writeOutput(outBuf, outSize);
     return 1;
+}
+
+bool UkEngine::backspaceAtSimpleBoundary() const
+{
+    if (m_current == 0)
+        return true;
+
+    const WordInfo &current = m_buffer[m_current];
+    const WordInfo &previous = m_buffer[m_current - 1];
+
+    const bool currentIsBareOrBreak =
+        current.form == vnw_empty || current.form == vnw_nonVn || current.form == vnw_c;
+    const bool previousEndsWithConsonantTail =
+        previous.form == vnw_c || previous.form == vnw_cvc || previous.form == vnw_vc;
+
+    return currentIsBareOrBreak || previousEndsWithConsonantTail;
+}
+
+bool UkEngine::backspaceShouldRelocateTone(int tone, int curTonePos, int newTonePos) const
+{
+    const bool hasTone = tone != 0;
+    if (!hasTone)
+        return false;
+
+    const bool toneSlotWouldChange = curTonePos != newTonePos;
+    if (!toneSlotWouldChange)
+        return false;
+
+    const bool toneLivesOnTrailingKeyBeingRemoved =
+        curTonePos == m_current && m_buffer[m_current].tone != 0;
+    if (toneLivesOnTrailingKeyBeingRemoved)
+        return false;
+
+    return true;
+}
+
+int UkEngine::backspaceCommitDecrementAndSync(int &backs, int &outSize)
+{
+    m_current--;
+    backs = m_backs;
+    outSize = 0;
+    synchKeyStrokeBuffer();
+    const bool restoredMultiCodeUnitSpan = backs > 1;
+    return restoredMultiCodeUnitSpan ? 1 : 0;
 }

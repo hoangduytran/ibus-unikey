@@ -21,7 +21,9 @@ StringBIStream::StringBIStream(UKBYTE *data, int len, int elementSize)
 {
 	m_data = m_current = data;
 	m_len = m_left = len;
-	if (len == -1)
+
+	const bool lenIsNegative = len == -1;
+	if (lenIsNegative)
 	{
 		if (elementSize == 2)
 			m_eos = (*(UKWORD *)data == 0);
@@ -495,8 +497,9 @@ int FileBIStream::getNext(UKBYTE &b)
 	}
 
 	m_lastIsAhead = 0;
-	b = fgetc(m_file);
-	return (!feof(m_file));
+	b = (UKBYTE)fgetc(m_file);
+	const bool byteAvailablePastEofProbe = (!feof(m_file));
+	return byteAvailablePastEofProbe ? 1 : 0;
 }
 
 //----------------------------------------------------
@@ -514,8 +517,9 @@ int FileBIStream::peekNext(UKBYTE &b)
 		return 1;
 	}
 
-	b = fgetc(m_file);
-	if (feof(m_file))
+	b = (UKBYTE)fgetc(m_file);
+	const bool streamAtEofAfterPeekRead = feof(m_file) != 0;
+	if (streamAtEofAfterPeekRead)
 		return 0;
 	ungetc(b, m_file);
 	return 1;
@@ -552,17 +556,11 @@ int FileBIStream::unget(UKBYTE b)
 int FileBIStream::getNextW(UKWORD &w)
 {
 	UKBYTE b1, b2;
-
-	if (getNext(b1))
-	{
-		if (getNext(b2))
-		{
-			*((UKBYTE *)&w) = b1;
-			*(((UKBYTE *)&w) + 1) = b2;
-			return 1;
-		}
-	}
-	return 0;
+	if (!getNext(b1) || !getNext(b2))
+		return 0;
+	*((UKBYTE *)&w) = b1;
+	*(((UKBYTE *)&w) + 1) = b2;
+	return 1;
 }
 
 //----------------------------------------------------
@@ -575,16 +573,11 @@ int FileBIStream::getNextW(UKWORD &w)
 int FileBIStream::getNextDW(UKDWORD &dw)
 {
 	UKWORD w1, w2;
-	if (getNextW(w1))
-	{
-		if (getNextW(w2))
-		{
-			*((UKWORD *)&dw) = w1;
-			*(((UKWORD *)&dw) + 1) = w2;
-			return 1;
-		}
-	}
-	return 0;
+	if (!getNextW(w1) || !getNextW(w2))
+		return 0;
+	*((UKWORD *)&dw) = w1;
+	*(((UKWORD *)&dw) + 1) = w2;
+	return 1;
 }
 //----------------------------------------------------
 /**
@@ -596,25 +589,22 @@ int FileBIStream::getNextDW(UKDWORD &dw)
 int FileBIStream::peekNextW(UKWORD &w)
 {
 	UKBYTE hi, low;
-	if (getNext(low))
-	{
-		if (getNext(hi))
-		{
-			unget(hi);
-			w = hi;
-			w = (w << 8) + low;
-			m_readAhead = 1;
-			m_readByte = low;
-			m_lastIsAhead = 0;
-			return 1;
-		}
-
+	if (!getNext(low))
+		return 0;
+	const bool hiByteReadOk = getNext(hi);
+	if (!hiByteReadOk) {
 		m_readAhead = 1;
 		m_readByte = low;
 		m_lastIsAhead = 0;
 		return 0;
 	}
-	return 0;
+	unget(hi);
+	w = hi;
+	w = (w << 8) + low;
+	m_readAhead = 1;
+	m_readByte = low;
+	m_lastIsAhead = 0;
+	return 1;
 }
 
 //----------------------------------------------------

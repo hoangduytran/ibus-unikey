@@ -36,7 +36,8 @@ gboolean macro_table_load_any_format(const gchar *filename, CMacroTable *table, 
 gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table,
                                        MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
                                        GError **err) {
-  if (!filename || !table) {
+  const bool importArgumentsValid = (filename != nullptr && table != nullptr);
+  if (!importArgumentsValid) {
     macro_interchange::fail(err, "Invalid macro interchange import arguments");
     return FALSE;
   }
@@ -66,7 +67,8 @@ gboolean macro_interchange_import_path(const gchar *filename, CMacroTable *table
 gboolean macro_interchange_export_path(const gchar *filename, CMacroTable *table,
                                        MacroInterchangeForcedFormat forced, MacroInterchangeStatistics *stats,
                                        GError **err) {
-  if (!filename || !table) {
+  const bool exportArgumentsValid = (filename != nullptr && table != nullptr);
+  if (!exportArgumentsValid) {
     macro_interchange::fail(err, "Invalid macro interchange export arguments");
     return FALSE;
   }
