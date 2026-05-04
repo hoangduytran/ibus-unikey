@@ -1,57 +1,46 @@
-Commit summary: refactor CSV/TSV macro export control flow; extract VnFileConvert file I/O into helpers
+fix(build,ukengine): align CMake with charset/engine split; macro title-case expansion
 
-Changed files
--------------
-- setup/macro_handler_csv.cpp
-- ukengine/roof/convert.cpp
-- commit.txt (this file)
+## Why
 
-setup/macro_handler_csv.cpp
------------------------------
-What changed
-- Replaced the `export_fail:` label and `goto export_fail` pattern in
-  `DelimitedTextMacroHandler::export_to_path` with a small local lambda,
-  `append_cell`, that wraps `append_libcsv_quoted_field` and calls
-  `macro_interchange::fail` when quoting/encoding fails.
-- Header cells (`trigger`, `content`) and each data row now call the same
-  `append_cell` path and return `FALSE` directly on failure.
+- `ukengine/CMakeLists.txt` still referenced removed monoliths `mapping/charset.cpp` and
+  `engine/ukengine.cpp`, breaking configuration. The real sources live under
+  `mapping/charset_components/` and `engine/engine_components/`.
+- Mixed-case macro triggers (e.g. typing `Hn` for a fold key `hn`) fell through to
+  `VnCaseNoChange`, so expansions stayed lower case (`hà nội`) while all-caps triggers
+  (`HN` → `HÀ NỘI`) still worked.
 
-Why
-- Avoids `goto` for a straight-line export routine and centralizes the error
-  message for “could not encode CSV/TSV field” in one place.
-- Behavior is unchanged: same quoted-field encoding, same `GError` reporting,
-  same successful write via `g_file_set_contents`.
+## What changed
 
-ukengine/roof/convert.cpp
--------------------------
-What changed
-- Introduced an anonymous namespace with helpers:
-  - `vnFileConvert_return` — preserves Win32 `_setmode(_fileno(stdin), _O_BINARY)`
-    in the epilogue when the input path was stdin (same intent as the old
-    `end:` block).
-  - `vnFileConvert_open_inf` — stdin vs `fopen(..., "rb")`, with stdin binary
-    mode on Windows when applicable.
-  - `vnFileConvert_open_outf` — stdout vs temp file next to the output path
-    (same temporary name layout and `mkstemp` + `fopen` sequence as before);
-    on failure, closes the already-open input stream.
-  - `vnFileConvert_close_after_convert` — closes streams and runs the same
-    `remove` calls on the final path and temp name gated on conversion result
-    as the previous implementation.
-- `VnFileConvert` is now a short orchestration of these helpers plus
-  `vnFileStreamConvert`, using `input_from_stdin` so early-error returns still
-  invoke the correct Win32 stdin restoration when stdin was used.
+### Build (`ukengine/CMakeLists.txt`)
 
-Why
-- Makes `VnFileConvert` easier to read and to reason about (open → convert →
-  close → return) without altering the documented contract.
-- Early-return paths for open failures now share the same stdin cleanup strategy
-  as the main return path, matching the old `goto end` behavior.
+- Replace `mapping/charset.cpp` with the nine `mapping/charset_components/*.cpp` translation units.
+- Replace `engine/ukengine.cpp` with all `engine/engine_components/*.cpp`,
+  `table_components/*.cpp`, and `engine/unikey.cpp`.
+- Add `target_include_directories` entries for `mapping/` and `engine/` so includes like
+  `charset_components/charset_internal.h` and `engine_components/engine_internal.h` resolve.
 
-Note
-- The success-path `remove` behavior for the real output path and the temp file
-  is intentionally left as in the prior code; this commit is a structural
-  refactor only.
+### Macros (`ukengine/engine/engine_components/macro.cpp`)
 
-Verification
-------------
-- Build/tests as relevant for this tree (e.g. existing CMake targets) after pull.
+- Add `VnCaseTitle`: when the trigger starts with an uppercase Vietnamese letter and any
+  following key is lowercase, normalize expansion to lower then capitalize the first letter
+  of each ASCII-space–delimited word (e.g. `hà nội` → `Hà Nội` for trigger `Hn`).
+- Keep `VnCaseAllCapital` / `VnCaseAllSmall` behavior for uniform triggers.
+
+### Documentation (`TECHNICAL_NOTE.md`)
+
+- Document charset and engine breakup, CMake source list, and include-path rationale (§11).
+- Fix stray typo in table of contents; extend TOC for §11.1.x; Vietnamese summary tweak for
+  `engine_components/`.
+
+## Files touched
+
+- `ukengine/CMakeLists.txt`
+- `ukengine/engine/engine_components/macro.cpp`
+- `TECHNICAL_NOTE.md`
+- `commit.txt`
+
+## Verify
+
+```bash
+cmake -S . -B build && cmake --build build -j$(nproc)
+```

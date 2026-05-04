@@ -33,7 +33,9 @@ enum VnCaseType
 {
     VnCaseNoChange,
     VnCaseAllCapital,
-    VnCaseAllSmall
+    VnCaseAllSmall,
+    /** e.g. trigger "Hn" → title-case each whitespace-delimited word in expansion */
+    VnCaseTitle,
 };
 
 //----------------------------------------------------
@@ -121,7 +123,7 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
 
     markChange(i);
 
-    // determine the form of macro replacements: ALL CAPITALS, First Character Capital, or no change
+    // determine the form of macro replacements: all small, ALL CAPS, title-case words, or verbatim
     VnCaseType macroCase;
     if (IS_STD_VN_LOWER(*pKeyStart))
     {
@@ -134,7 +136,8 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
         {
             if (IS_STD_VN_LOWER(pKeyStart[i]))
             {
-                macroCase = VnCaseNoChange;
+                macroCase = VnCaseTitle;
+                break;
             }
         }
     }
@@ -149,14 +152,36 @@ int UkEngine::macroMatch(UkKeyEvent &ev)
     m_macroTextScratch.resize((size_t)charCount + 1u);
     StdVnChar *const macroText = m_macroTextScratch.data();
 
-    for (i = 0; i < charCount; i++)
+    if (macroCase == VnCaseTitle)
     {
-        if (macroCase == VnCaseAllCapital)
-            macroText[i] = StdVnToUpper(pMacText[i]);
-        else if (macroCase == VnCaseAllSmall)
+        for (i = 0; i < charCount; i++)
             macroText[i] = StdVnToLower(pMacText[i]);
-        else
-            macroText[i] = pMacText[i];
+        bool wordStart = true;
+        for (i = 0; i < charCount; i++)
+        {
+            if (macroText[i] == (StdVnChar)' ')
+                wordStart = true;
+            else if (wordStart &&
+                     (IS_STD_VN_LOWER(macroText[i]) || IS_STD_VN_UPPER(macroText[i])))
+            {
+                macroText[i] = StdVnToUpper(macroText[i]);
+                wordStart = false;
+            }
+            else
+                wordStart = false;
+        }
+    }
+    else
+    {
+        for (i = 0; i < charCount; i++)
+        {
+            if (macroCase == VnCaseAllCapital)
+                macroText[i] = StdVnToUpper(pMacText[i]);
+            else if (macroCase == VnCaseAllSmall)
+                macroText[i] = StdVnToLower(pMacText[i]);
+            else
+                macroText[i] = pMacText[i];
+        }
     }
     macroText[charCount] = 0;
 

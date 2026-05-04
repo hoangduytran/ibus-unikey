@@ -8,7 +8,7 @@ If this note, older screenshots, or user-facing help text disagree with the impl
 
 - [English](#table-of-contents)
 - [Tiếng Việt](#tom-tat-tieng-viet)
-f
+
 ## Table of Contents
 
 - [1. Scope](#1-scope)
@@ -23,6 +23,9 @@ f
 - [10. Suggestions](#10-suggestions)
 - [11. Source Map](#11-source-map)
   - [11.1 Refactored module directories (May 2026)](#111-refactored-module-directories-may-2026)
+    - [11.1.1 Charset breakup](#1111-charset-breakup-mappingcharset_components)
+    - [11.1.2 Engine breakup](#1112-engine-breakup-engineengine_components)
+    - [11.1.3 Include paths for the split layout](#1113-include-paths-for-the-split-layout)
 - [12. Tóm tắt tiếng Việt](#12-tom-tat-tieng-viet)
 
 ## 1. Scope
@@ -649,6 +652,8 @@ The most valuable focused tests would be:
 
 These files are the most important entry points when tracing the current implementation.
 
+**Build boundary:** The static library `libukengine` is defined in `ukengine/CMakeLists.txt`. The former monolithic translation units **`ukengine/mapping/charset.cpp`** and **`ukengine/engine/ukengine.cpp`** are **not** in the tree; CMake compiles the split modules listed below instead. **`ukengine/engine/unikey.cpp`** remains the IBus-facing C API bridge and is its own TU.
+
 - IBus key processing and preedit handling: `src/engine.cpp`
 - Engine application metadata and stale help text: `src/engine/engine_app.cpp`
 - Config key maps and macro path: `src/config/unikey_config.h`
@@ -671,7 +676,25 @@ These files are the most important entry points when tracing the current impleme
 
 ### 11.1 Refactored module directories (May 2026)
 
-Several former single-file modules are now **split across multiple `.cpp` translation units** while keeping the same public headers and link boundary (`libukengine.a` / setup executable). CMake lists the exact object files in `ukengine/CMakeLists.txt` and `setup/CMakeLists.txt`.
+Several former single-file modules are now **split across multiple `.cpp` translation units** while keeping the same public headers and link boundary (`libukengine.a` / setup executable). For **ukengine**, CMake **enumerates each `.cpp` explicitly** in `ukengine/CMakeLists.txt` (no glob); **`setup/CMakeLists.txt`** does the same for setup splits.
+
+#### 11.1.1 Charset breakup (`mapping/charset_components/`)
+
+- **Replaces:** `ukengine/mapping/charset.cpp` (removed).
+- **Now:** nine sources — `charset_base.cpp`, `charset_doublebyte.cpp`, `charset_globals.cpp`, `charset_library.cpp`, `charset_stdvn.cpp`, `charset_unicode.cpp`, `charset_utf8_viqr.cpp`, `charset_viqr.cpp`, `charset_wincp1258.cpp` — plus shared `charset_internal.h` in the same directory.
+- **Public API:** unchanged; callers still use `charset.h`, `vnconv.h`, and `VnConvert()`.
+
+#### 11.1.2 Engine breakup (`engine/engine_components/`)
+
+- **Replaces:** `ukengine/engine/ukengine.cpp` (removed).
+- **Now:** `UkEngine` body and syllable-table helpers are split across `engine/engine_components/*.cpp` and `engine/engine_components/table_components/*.cpp`; the runtime C wrapper stays in **`engine/unikey.cpp`** (see [§2.3](#23-unikey-wrapper-layer)).
+- **Public API:** unchanged; `include/ukengine/engine/ukengine.h` and related headers describe `UkEngine`.
+
+#### 11.1.3 Include paths for the split layout
+
+Sources under `charset_components/` use includes such as `"charset_components/charset_internal.h"`. Sources under `engine_components/` use `"engine_components/engine_internal.h"` (and similar). For those to resolve when each file is compiled from its real path, **`ukengine/CMakeLists.txt` adds** `${CMAKE_CURRENT_SOURCE_DIR}/mapping` and `${CMAKE_CURRENT_SOURCE_DIR}/engine` to **`target_include_directories(ukengine …)`** so the parent of `charset_components/` / `engine_components/` is on the include path.
+
+---
 
 **`ukengine/engine/engine_components/`** — `UkEngine` implementation (non-table logic):
 
@@ -691,7 +714,7 @@ Several former single-file modules are now **split across multiple `.cpp` transl
 
 - `setup_controller_helpers.cpp`, `setup_controller_globals.cpp`, `setup_controller_lifecycle.cpp`, `setup_controller_config.cpp`, `setup_controller_macro_io.cpp`, `setup_controller_macro_model.cpp`, `setup_controller_macro_editor.cpp`, `setup_controller_internal.h`
 
-There is **no** longer a monolithic `ukengine/engine/ukengine.cpp`, `ukengine/mapping/charset.cpp`, or `setup/controller/setup_controller.cpp` in the tree; behavior is intended to match the pre-split layout.
+There is **no** longer a monolithic `ukengine/engine/ukengine.cpp`, `ukengine/mapping/charset.cpp`, or `setup/controller/setup_controller.cpp` in the tree. **`ukengine/CMakeLists.txt` must list the replacement `charset_components` and `engine_components` sources** (and the `mapping` / `engine` include dirs above); otherwise configuration will fail with missing `.cpp` errors. Behavior is intended to match the pre-split layout.
 
 ## 12. Tóm tắt tiếng Việt
 
@@ -721,7 +744,7 @@ VIQR và MsVi có bảng ánh xạ trong lõi, nhưng hiện không được l�
 Các lớp trung gian chính là:
 
 - `UkKeyEvent`
-- trạng thái soạn thảo trong `UkEngine`
+- trạng thái soạn thảo trong `UkEngine` (mã nguồn tách trong `engine/engine_components/`)
 - ký hiệu tiếng Việt chuẩn `VnLexiName`
 - biểu diễn chuẩn `StdVnChar`
 - lớp chuyển mã `VnConvert()` / các file trong `charset_components/`
