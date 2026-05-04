@@ -687,16 +687,20 @@ int UkEngine::processTone(UkKeyEvent &ev)
  */
 int UkEngine::processDd(UkKeyEvent &ev)
 {
-    if (!m_pCtrl->vietKey || m_current < 0)
+    const bool vietnamese_mode_ready = m_pCtrl->vietKey && m_current >= 0;
+    if (!vietnamese_mode_ready)
         return processAppend(ev);
 
     int pos;
 
     // we want to allow dd even in non-vn sequence, because dd is used a lot in abbreviation
     // we allow dd only if preceding character is not a vowel
-    if (m_buffer[m_current].form == vnw_nonVn &&
-        m_buffer[m_current].vnSym == vnl_d &&
-        (m_buffer[m_current - 1].vnSym == vnl_nonVnChar || !IsVnVowel[m_buffer[m_current - 1].vnSym]))
+    const bool prev_slot_not_vowel =
+        m_buffer[m_current - 1].vnSym == vnl_nonVnChar ||
+        !IsVnVowel[m_buffer[m_current - 1].vnSym];
+    const bool abbrev_dd_on_nonvn_d = m_buffer[m_current].form == vnw_nonVn &&
+                                      m_buffer[m_current].vnSym == vnl_d && prev_slot_not_vowel;
+    if (abbrev_dd_on_nonvn_d)
     {
         m_singleMode = true;
         pos = m_current;
@@ -710,16 +714,15 @@ int UkEngine::processDd(UkKeyEvent &ev)
         return 1;
     }
 
-    if (m_buffer[m_current].c1Offset < 0)
-    {
+    const bool consonant_frame_missing = m_buffer[m_current].c1Offset < 0;
+    if (consonant_frame_missing)
         return processAppend(ev);
-    }
 
     pos = m_current - m_buffer[m_current].c1Offset;
-    if (!m_pCtrl->options.freeMarking && pos != m_current)
-    {
+    const bool free_marking_off = !m_pCtrl->options.freeMarking;
+    const bool consonant_not_at_cursor = pos != m_current;
+    if (free_marking_off && consonant_not_at_cursor)
         return processAppend(ev);
-    }
 
     if (m_buffer[pos].cseq == cs_d)
     {

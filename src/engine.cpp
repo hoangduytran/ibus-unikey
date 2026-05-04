@@ -591,6 +591,211 @@ int latinToUtf(unsigned char *dst, unsigned char *src, int inSize, int *pOutSize
     return (outLeft >= 0);
 }
 
+static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine *engine,
+                                                             guint keyval,
+                                                             guint keycode,
+                                                             guint modifiers);
+
+namespace {
+
+/**
+ * @brief Ignore key-up events for preedit (IBus sends press and release).
+ */
+gboolean ibus_key_event_is_release(guint modifiers)
+{
+    return (modifiers & IBUS_RELEASE_MASK) != 0;
+}
+
+/**
+ * @brief Keys that commit preedit and must be handled by the client (navigation, shortcuts).
+ */
+gboolean ibus_key_should_commit_and_bypass_to_client(guint keyval, guint modifiers)
+{
+    const gboolean modifier_ctrl_or_alt = (modifiers & IBUS_CONTROL_MASK) != 0 ||
+                                          (modifiers & IBUS_MOD1_MASK) != 0;
+    const gboolean key_is_control_left_or_right =
+        keyval == IBUS_Control_L || keyval == IBUS_Control_R;
+    const gboolean key_is_tab = keyval == IBUS_Tab;
+    const gboolean key_is_return = keyval == IBUS_Return;
+    const gboolean key_is_delete = keyval == IBUS_Delete;
+    const gboolean key_is_kp_enter = keyval == IBUS_KP_Enter;
+    const gboolean key_in_main_nav_cluster =
+        keyval >= IBUS_Home && keyval <= IBUS_Insert;
+    const gboolean key_in_kp_nav_cluster =
+        keyval >= IBUS_KP_Home && keyval <= IBUS_KP_Delete;
+
+    return modifier_ctrl_or_alt || key_is_control_left_or_right || key_is_tab ||
+           key_is_return || key_is_delete || key_is_kp_enter ||
+           key_in_main_nav_cluster || key_in_kp_nav_cluster;
+}
+
+/**
+ * @brief Modifier-only keys that never insert text (Caps…Hyper, or lone Shift press).
+ */
+gboolean ibus_key_is_modifier_only_no_text(guint keyval, guint modifiers)
+{
+    const gboolean key_in_caps_through_hyper =
+        keyval >= IBUS_Caps_Lock && keyval <= IBUS_Hyper_R;
+    const gboolean bare_shift_key = (modifiers & IBUS_SHIFT_MASK) == 0 &&
+                                    (keyval == IBUS_Shift_L || keyval == IBUS_Shift_R);
+    return key_in_caps_through_hyper || bare_shift_key;
+}
+
+gboolean ibus_keyval_is_printable_or_bare_shift(guint keyval)
+{
+    const gboolean in_printable_ascii =
+        keyval >= IBUS_space && keyval <= IBUS_asciitilde;
+    const gboolean is_shift_key =
+        keyval == IBUS_Shift_L || keyval == IBUS_Shift_R;
+    return in_printable_ascii || is_shift_key;
+}
+
+gboolean ibus_keyval_is_keypad_mul_through_9(guint keyval)
+{
+    return keyval >= IBUS_KP_Multiply && keyval <= IBUS_KP_9;
+}
+
+/**
+ * @brief Append `UnikeyBuf` / `UnikeyBufChars` to preedit (UTF-8 or legacy→UTF-8).
+ */
+void ibus_unikey_preedit_append_unikey_output_bytes(IBusEngine *engine)
+{
+    if (UnikeyBufChars <= 0)
+        return;
+    IBusUnikeyEngine *uk = (IBusUnikeyEngine *)engine;
+    if (uk->oc == CONV_CHARSET_XUTF8)
+    {
+        uk->preeditstr->append((const gchar *)UnikeyBuf, UnikeyBufChars);
+        return;
+    }
+    static unsigned char buf[CONVERT_BUF_SIZE];
+    int bufSize = CONVERT_BUF_SIZE;
+    latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
+    uk->preeditstr->append((const gchar *)buf, CONVERT_BUF_SIZE - bufSize);
+}
+
+/**
+ * @brief Commit preedit when last preedit byte and keyval both match a word-break symbol.
+ * @return TRUE if committed.
+ */
+gboolean ibus_unikey_preedit_try_commit_word_break(IBusEngine *engine, guint keyval)
+{
+    IBusUnikeyEngine *uk = (IBusUnikeyEngine *)engine;
+    if (uk->preeditstr->length() == 0)
+        return FALSE;
+    static guint i;
+    const char last_preedit_byte = uk->preeditstr->at(uk->preeditstr->length() - 1);
+    for (i = 0; i < sizeof(WordBreakSyms); i++)
+    {
+        const gboolean break_matches_tail_and_key =
+            WordBreakSyms[i] == (unsigned char)last_preedit_byte &&
+            WordBreakSyms[i] == keyval;
+        if (break_matches_tail_and_key)
+        {
+            ibus_unikey_buffer_commit(engine);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/**
+ * @brief Telex/STelex2: pass standalone `w`/`W` through when option disables `ư` mapping.
+ */
+gboolean ibus_unikey_try_telex_standalone_w(IBusEngine *engine, guint keyval)
+{
+    IBusUnikeyEngine *uk = unikey;
+    const gboolean im_allows_standalone_w_rule =
+        uk->im == UkTelex || uk->im == UkSimpleTelex2;
+    const gboolean standalone_w_as_uw_disabled = !uk->process_w_at_begin;
+    const gboolean at_word_start = UnikeyAtWordBeginning();
+    const gboolean key_is_ascii_w = keyval == IBUS_w || keyval == IBUS_W;
+    if (!im_allows_standalone_w_rule || !standalone_w_as_uw_disabled || !at_word_start ||
+        !key_is_ascii_w)
+        return FALSE;
+
+    UnikeyPutChar(keyval);
+    uk->preeditstr->append(keyval == IBUS_w ? "w" : "W");
+    ibus_unikey_engine_update_preedit_string(engine, uk->preeditstr->c_str(), TRUE);
+    return TRUE;
+}
+
+/**
+ * @brief Backspace path: Unikey backspace, trim preedit, re-append engine output if any.
+ */
+gboolean ibus_unikey_handle_backspace_preedit(IBusEngine *engine)
+{
+    UnikeyBackspacePress();
+
+    const gboolean engine_did_not_request_backspace =
+        UnikeyBackspaces == 0 || unikey->preeditstr->empty();
+    if (engine_did_not_request_backspace)
+        return FALSE;
+
+    if (unikey->preeditstr->length() <= (guint)UnikeyBackspaces)
+        ibus_unikey_buffer_reset(engine);
+    else
+    {
+        ibus_unikey_engine_erase_chars(engine, UnikeyBackspaces);
+        ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), TRUE);
+    }
+
+    if (UnikeyBufChars > 0)
+    {
+        ibus_unikey_preedit_append_unikey_output_bytes(engine);
+        ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), TRUE);
+    }
+    return TRUE;
+}
+
+/**
+ * @brief Printable / shift path: filter or restore, apply Unikey output, word-break commit.
+ */
+gboolean ibus_unikey_handle_printable_preedit(IBusEngine *engine, guint keyval,
+                                              guint modifiers)
+{
+    UnikeySetCapsState(modifiers & IBUS_SHIFT_MASK, modifiers & IBUS_LOCK_MASK);
+
+    if (ibus_unikey_try_telex_standalone_w(engine, keyval))
+        return TRUE;
+
+    const gboolean shift_plus_space_mid_word =
+        unikey->last_key_with_shift == false && (modifiers & IBUS_SHIFT_MASK) != 0 &&
+        keyval == IBUS_space && !UnikeyAtWordBeginning();
+    const gboolean bare_shift_key_event =
+        keyval == IBUS_Shift_L || keyval == IBUS_Shift_R;
+    if (shift_plus_space_mid_word || bare_shift_key_event)
+        UnikeyRestoreKeyStrokes();
+    else
+        UnikeyFilter(keyval);
+
+    if (UnikeyBackspaces > 0)
+    {
+        if (unikey->preeditstr->length() <= (guint)UnikeyBackspaces)
+            unikey->preeditstr->clear();
+        else
+            ibus_unikey_engine_erase_chars(engine, UnikeyBackspaces);
+    }
+
+    if (UnikeyBufChars > 0)
+        ibus_unikey_preedit_append_unikey_output_bytes(engine);
+    else if (keyval != IBUS_Shift_L && keyval != IBUS_Shift_R)
+    {
+        static int n;
+        static char s[6];
+        n = g_unichar_to_utf8(keyval, s);
+        unikey->preeditstr->append(s, n);
+    }
+
+    if (ibus_unikey_preedit_try_commit_word_break(engine, keyval))
+        return TRUE;
+
+    ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), TRUE);
+    return TRUE;
+}
+
+} // namespace
+
 /**
  * @brief Process a raw key event for the Unikey engine.
  *
@@ -614,15 +819,12 @@ static gboolean ibus_unikey_engine_process_key_event(IBusEngine *engine,
 
     tmp = ibus_unikey_engine_process_key_event_preedit(engine, keyval, keycode, modifiers);
 
-    // check last keyevent with shift
-    if (keyval >= IBUS_space && keyval <= IBUS_asciitilde)
-    {
+    const gboolean keyval_in_printable_ascii =
+        keyval >= IBUS_space && keyval <= IBUS_asciitilde;
+    if (keyval_in_printable_ascii)
         unikey->last_key_with_shift = modifiers & IBUS_SHIFT_MASK;
-    }
     else
-    {
-        unikey->last_key_with_shift = false;
-    } // end check last keyevent with shift
+        unikey->last_key_with_shift = FALSE;
 
     return tmp;
 }
@@ -641,159 +843,30 @@ static gboolean ibus_unikey_engine_process_key_event_preedit(IBusEngine *engine,
                                                              guint keycode,
                                                              guint modifiers)
 {
-    if (modifiers & IBUS_RELEASE_MASK)
-    {
+    if (ibus_key_event_is_release(modifiers))
         return false;
-    }
 
-    else if (modifiers & IBUS_CONTROL_MASK || modifiers & IBUS_MOD1_MASK // alternate mask
-             || keyval == IBUS_Control_L || keyval == IBUS_Control_R || keyval == IBUS_Tab || keyval == IBUS_Return || keyval == IBUS_Delete || keyval == IBUS_KP_Enter || (keyval >= IBUS_Home && keyval <= IBUS_Insert) || (keyval >= IBUS_KP_Home && keyval <= IBUS_KP_Delete))
+    if (ibus_key_should_commit_and_bypass_to_client(keyval, modifiers))
     {
         ibus_unikey_buffer_commit(engine);
         return false;
     }
 
-    else if ((keyval >= IBUS_Caps_Lock && keyval <= IBUS_Hyper_R) || (!(modifiers & IBUS_SHIFT_MASK) && (keyval == IBUS_Shift_L || keyval == IBUS_Shift_R)) // when press one shift key
-    )
-    {
+    if (ibus_key_is_modifier_only_no_text(keyval, modifiers))
         return false;
-    }
 
-    // capture BackSpace
-    else if (keyval == IBUS_BackSpace)
-    {
-        UnikeyBackspacePress();
+    if (keyval == IBUS_BackSpace)
+        return ibus_unikey_handle_backspace_preedit(engine);
 
-        if (UnikeyBackspaces == 0 || unikey->preeditstr->empty())
-        {
-            return false;
-        }
-        else
-        {
-            if (unikey->preeditstr->length() <= (guint)UnikeyBackspaces)
-            {
-                ibus_unikey_buffer_reset(engine);
-            }
-            else
-            {
-                ibus_unikey_engine_erase_chars(engine, UnikeyBackspaces);
-                ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
-            }
-
-            // change tone position after press backspace
-            if (UnikeyBufChars > 0)
-            {
-                if (unikey->oc == CONV_CHARSET_XUTF8)
-                {
-                    unikey->preeditstr->append((const gchar *)UnikeyBuf, UnikeyBufChars);
-                }
-                else
-                {
-                    static unsigned char buf[CONVERT_BUF_SIZE];
-                    int bufSize = CONVERT_BUF_SIZE;
-
-                    latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
-                    unikey->preeditstr->append((const gchar *)buf, CONVERT_BUF_SIZE - bufSize);
-                }
-
-                ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
-            }
-        }
-        return true;
-    } // end capture BackSpace
-
-    else if (keyval >= IBUS_KP_Multiply && keyval <= IBUS_KP_9)
+    if (ibus_keyval_is_keypad_mul_through_9(keyval))
     {
         ibus_unikey_buffer_commit(engine);
         return false;
     }
 
-    // capture ascii printable char
-    else if ((keyval >= IBUS_space && keyval <= IBUS_asciitilde) || keyval == IBUS_Shift_L || keyval == IBUS_Shift_R) // sure this have IBUS_SHIFT_MASK
-    {
-        UnikeySetCapsState(modifiers & IBUS_SHIFT_MASK, modifiers & IBUS_LOCK_MASK);
+    if (ibus_keyval_is_printable_or_bare_shift(keyval))
+        return ibus_unikey_handle_printable_preedit(engine, keyval, modifiers);
 
-        // process keyval
-
-        if ((unikey->im == UkTelex || unikey->im == UkSimpleTelex2) && unikey->process_w_at_begin == false && UnikeyAtWordBeginning() && (keyval == IBUS_w || keyval == IBUS_W))
-        {
-            UnikeyPutChar(keyval);
-            unikey->preeditstr->append(keyval == IBUS_w ? "w" : "W");
-            ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
-            return true;
-        }
-
-        // shift + space, shift + shift event
-        if ((unikey->last_key_with_shift == false && modifiers & IBUS_SHIFT_MASK && keyval == IBUS_space && !UnikeyAtWordBeginning()) || (keyval == IBUS_Shift_L || keyval == IBUS_Shift_R) // (&& modifiers & IBUS_SHIFT_MASK), sure this have IBUS_SHIFT_MASK
-        )
-        {
-            UnikeyRestoreKeyStrokes();
-        } // end shift + space, shift + shift event
-
-        else
-        {
-            UnikeyFilter(keyval);
-        }
-        // end process keyval
-
-        // process result of ukengine
-        if (UnikeyBackspaces > 0)
-        {
-            if (unikey->preeditstr->length() <= (guint)UnikeyBackspaces)
-            {
-                unikey->preeditstr->clear();
-            }
-            else
-            {
-                ibus_unikey_engine_erase_chars(engine, UnikeyBackspaces);
-            }
-        }
-
-        if (UnikeyBufChars > 0)
-        {
-            if (unikey->oc == CONV_CHARSET_XUTF8)
-            {
-                unikey->preeditstr->append((const gchar *)UnikeyBuf, UnikeyBufChars);
-            }
-            else
-            {
-                static unsigned char buf[CONVERT_BUF_SIZE];
-                int bufSize = CONVERT_BUF_SIZE;
-
-                latinToUtf(buf, UnikeyBuf, UnikeyBufChars, &bufSize);
-                unikey->preeditstr->append((const gchar *)buf, CONVERT_BUF_SIZE - bufSize);
-            }
-        }
-        else if (keyval != IBUS_Shift_L && keyval != IBUS_Shift_R) // if ukengine not process
-        {
-            static int n;
-            static char s[6];
-
-            n = g_unichar_to_utf8(keyval, s); // convert ucs4 to utf8 char
-            unikey->preeditstr->append(s, n);
-        }
-        // end process result of ukengine
-
-        // commit string: if need
-        if (unikey->preeditstr->length() > 0)
-        {
-            static guint i;
-            for (i = 0; i < sizeof(WordBreakSyms); i++)
-            {
-                if (WordBreakSyms[i] == unikey->preeditstr->at(unikey->preeditstr->length() - 1) && WordBreakSyms[i] == keyval)
-                {
-                    ibus_unikey_buffer_commit(engine);
-                    return true;
-                }
-            }
-        }
-        // end commit string
-
-        ibus_unikey_engine_update_preedit_string(engine, unikey->preeditstr->c_str(), true);
-        return true;
-    } // end capture printable char
-
-    // non process key
     ibus_unikey_buffer_commit(engine);
     return false;
 }
