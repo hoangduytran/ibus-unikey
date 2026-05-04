@@ -1,79 +1,42 @@
-refactor(readability): decompose engine paths, ukengine TUs, and macro interchange
+fix(setup macros): simplify import/export filters; default to UniKey `.txt`
 
 ## Why
 
-- Apply the readability plan: named booleans and `static`/private helpers so intent is
-  visible before mechanics, without changing observable behavior (preedit, commits,
-  macros, charsets).
-- Follow existing project style (e.g. `mactab.cpp`-style structure and Doxygen where
-  already used in touched areas).
+The **“All supported formats”** file filter duplicated every extension (`*.txt`, `*.json`, …)
+in one entry. Choosing it did **not** change how files are decoded: interchange format still
+comes from **`MACRO_INTERCHANGE_FORMAT_AUTO`** and **`MacroFormatHandlerRegistry::detect_from_path`**
+(on the pathname suffix). GTK filters only constrain what the dialog tends to highlight and—on
+export—which **preferred extension** `macro_export_filename_finalize_for_save` applies from
+`macro_file_chooser_filter_preferred_export_extension`.
+
+Keeping a catch-all filter was therefore misleading: users might think one must pick “all” to
+import mixed types, while in practice suffix-based dispatch handles every supported type the same.
+
+Defaulting explicitly to **UniKey macro text** aligns the UI with the most common workflow and
+matches export behavior already implied by tagging that filter with **`.txt`**. Other formats remain
+available as explicit filters (`JSON macros`, YAML, plist, CSV, TSV).
 
 ## What changed
 
-### IBus engine and `UkEngine` surface
-
-- `src/engine.cpp`: clearer dispatch for `ibus_unikey_engine_process_key_event` /
-  preedit path; static predicate-style helpers where it reduced dense modifier/keyval
-  conditions.
-- `include/ukengine/engine/ukengine.h`: declarations aligned with refactored
-  `UkEngine` implementation split.
-
-### Core engine (`ukengine/`)
-
-- `ukengine/engine/engine_components/diacritic_processing.cpp`: break up large `process*`
-  methods; shared vowel/tone patterns use named guards and helpers where duplication
-  was obvious.
-- `ukengine/engine/engine_components/append.cpp`: structure `processAppend` and related
-  append logic with clearer phases and locals.
-- `ukengine/engine/engine_components/process_io.cpp`: decompose `UkEngine::process` and
-  related output sequencing for easier review.
-
-### I/O and charset
-
-- `ukengine/core/byteio.cpp`: flatten `FileBIStream` multi-byte reads (`getNextW` /
-  `getNextDW` / `peekNextW`) and clarify EOF predicates on `getNext`/`peekNext`.
-- `ukengine/mapping/charset_components/charset_unicode.cpp`: extract
-  `tryConsumeCStyleHexEscapeAfterBackslash` for `UnicodeCStringCharset::nextInput`
-  (`\x` / `\X` hex escapes only; HTML `&#` / NCR paths unchanged).
-
-### Macro table load/save
-
-- `ukengine/mapping/macro_cache.cpp`: `tryLoad` / `persist` use phased `const bool`
-  checks and single `fclose` on the cache file path where applicable.
-- `ukengine/mapping/mactab.cpp`: `writeToFile`, `loadFromFile`,
-  `decodeMacroKeyAndText` use explicit success flags (`textExportOk`, sidecar hydrate,
-  UTF-8 upgrade branch, decoded key/text pairs).
-- `ukengine/mapping/text_macro_format.cpp`: named flags for open and header reads on
-  import/export.
-
-### Setup macro interchange
-
-- `setup/macro_file_io.cpp`: `importArgumentsValid` / `exportArgumentsValid` for early
-  `GError` paths.
-- `setup/macro_handler_csv.cpp`: `delimited_row_looks_like_macro_header`; CSV parse/fini
-  success locals; repair accidental stray `§` in source after `return FALSE`.
-- `setup/macro_handler_plist.cpp`: named booleans around plist parse and root-shape
-  handling.
+- **`setup/macro_file_io.cpp`**
+  - Removed the aggregated “All supported formats” `GtkFileFilter`.
+  - **Default active filter** is now **UniKey macro text** (`.txt` / `.macro` patterns), unchanged
+    preferred extension tagging for export (still `.txt` for that filter).
+- **`tests/macros/macro_file_io_test.cpp`**
+  - Renamed the combined AUTO-import regression test path from
+    `/ui/macros/file-io/all-supported-filter-still-uses-filename-extension` to
+    **`/ui/macros/file-io/auto-import-resolves-by-filename-extension`**, since the assertion is only
+    that basename suffix selects the codec, not interaction with any “all formats” GTK filter.
 
 ## Verify
 
 ```bash
-cmake --build build -j$(nproc) && ctest --output-on-failure
+cmake --build build --target test-macro-file-io test-macro-export-filename &&
+  build/tests/macros/test-macro-export-filename &&
+  build/tests/macros/test-macro-file-io "$(pwd)/tests/macros"
 ```
 
 ## Files touched
 
-- `src/engine.cpp`
-- `include/ukengine/engine/ukengine.h`
-- `ukengine/engine/engine_components/diacritic_processing.cpp`
-- `ukengine/engine/engine_components/append.cpp`
-- `ukengine/engine/engine_components/process_io.cpp`
-- `ukengine/core/byteio.cpp`
-- `ukengine/mapping/charset_components/charset_unicode.cpp`
-- `ukengine/mapping/macro_cache.cpp`
-- `ukengine/mapping/mactab.cpp`
-- `ukengine/mapping/text_macro_format.cpp`
 - `setup/macro_file_io.cpp`
-- `setup/macro_handler_csv.cpp`
-- `setup/macro_handler_plist.cpp`
-- `commit.txt`
+- `tests/macros/macro_file_io_test.cpp`

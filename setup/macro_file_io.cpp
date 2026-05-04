@@ -107,20 +107,6 @@ static void tag_filter_export_extension(GtkFileFilter *filter, const gchar *exte
 }
 
 static void attach_macro_chooser_filters(GtkFileChooser *chooser, gboolean tag_export_defaults) {
-  GtkFileFilter *all = gtk_file_filter_new();
-  gtk_file_filter_set_name(all, _("All supported formats"));
-  gtk_file_filter_add_pattern(all, "*.txt");
-  gtk_file_filter_add_pattern(all, "*.macro");
-  gtk_file_filter_add_pattern(all, "*.json");
-  gtk_file_filter_add_pattern(all, "*.yaml");
-  gtk_file_filter_add_pattern(all, "*.yml");
-  gtk_file_filter_add_pattern(all, "*.plist");
-  gtk_file_filter_add_pattern(all, "*.csv");
-  gtk_file_filter_add_pattern(all, "*.tsv");
-  gtk_file_chooser_add_filter(chooser, all);
-  if (tag_export_defaults)
-    tag_filter_export_extension(all, ".txt");
-
   GtkFileFilter *uni = gtk_file_filter_new();
   gtk_file_filter_set_name(uni, _("UniKey macro text"));
   gtk_file_filter_add_pattern(uni, "*.txt");
@@ -165,7 +151,8 @@ static void attach_macro_chooser_filters(GtkFileChooser *chooser, gboolean tag_e
   if (tag_export_defaults)
     tag_filter_export_extension(tsv, ".tsv");
 
-  gtk_file_chooser_set_filter(chooser, all);
+  /* Default export extension is `.txt`; import shows the same UniKey-first filter unless the user switches. */
+  gtk_file_chooser_set_filter(chooser, uni);
 }
 
 const gchar *macro_file_chooser_filter_preferred_export_extension(GtkFileFilter *filter) {

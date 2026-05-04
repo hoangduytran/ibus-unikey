@@ -115,7 +115,8 @@ int main(int argc, char** argv)
     g_test_add_func("/ui/macros/file-io/load-json-from-extension", test_json_loads_from_extension);
     g_test_add_func("/ui/macros/file-io/load-csv-from-extension", test_csv_loads_from_extension);
     g_test_add_func("/ui/macros/file-io/load-tsv-from-extension", test_tsv_loads_from_extension);
-    g_test_add_func("/ui/macros/file-io/all-supported-filter-still-uses-filename-extension", test_all_formats_resolve_by_filename_extension);
+    g_test_add_func("/ui/macros/file-io/auto-import-resolves-by-filename-extension",
+                    test_all_formats_resolve_by_filename_extension);
 
     return g_test_run();
 }
