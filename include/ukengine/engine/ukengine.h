@@ -291,9 +291,49 @@ protected:
     int processHookWithUO(UkKeyEvent & ev);
 
     /**
-     * @brief Attempt macro table match for current event sequence.
+     * @brief Attempt macro table match for the current input sequence.
+     *
+     * Progression:
+     * 1. Skip shift+space/enter via `macroMatchPreSkip`.
+     * 2. Scan composition buffer via `macroMatchScanForHit`.
+     * 3. `markChange`, build cased expansion, flush output charset bytes.
      */
     int macroMatch(UkKeyEvent & ev);
+
+    /**
+     * @brief True when shift is held and the key is space or enter (macro match disabled).
+     */
+    bool macroMatchPreSkip(const UkKeyEvent &ev) const;
+    /**
+     * @brief Search backward for a `CMacroTable` hit; fills expansion pointer and `markChange` index.
+     */
+    bool macroMatchScanForHit(const StdVnChar *&pMacText, int &markIndex,
+                              StdVnChar *&pKeyStart);
+    /**
+     * @brief Apply trigger casing to macro text into `m_macroTextScratch`; returns unit count.
+     */
+    int macroMatchBuildExpansionStdVn(const StdVnChar *pKeyStart,
+                                      const StdVnChar *pMacText);
+    /**
+     * @brief `VnConvert` expansion and trailing key into `m_pOutBuf`, then `reset`.
+     */
+    void macroMatchFlushOutput(const UkKeyEvent &ev, int expansionUnitCount);
+
+    /** @brief `WordInfo` → VNSTANDARD unit for macro fold key assembly. */
+    static StdVnChar macroMatchWordInfoToStdKey(const WordInfo &w);
+    /** @brief Span `firstBufferIndex…m_current` within `MAX_UK_ENGINE`. */
+    bool macroMatchMacroKeyFitsEngine(int firstBufferIndex) const;
+    /** @brief Rewind index to a word boundary or fail if blocked by non-break form. */
+    bool macroMatchRewindToWordBoundary(int &wordSpanStartIndex) const;
+    /** @brief Write NUL-terminated VN key from `m_buffer` into scratch. */
+    void macroMatchBuildFoldLookupKey(int wordSpanStartIndex,
+                                      StdVnChar *nulTerminatedKeyOut);
+    /**
+     * @brief `lookup(key+1)` then `lookup(key)`; sets `markIndex` / `pKeyStart` on hit.
+     */
+    bool macroMatchLookupAtSpan(int wordSpanStartIndex, StdVnChar *nulTerminatedKey,
+                                const StdVnChar *&outMacText, int &markIndex,
+                                StdVnChar *&pKeyStart);
 
     /**
      * @brief Mark a buffer change position for subsequent commit.

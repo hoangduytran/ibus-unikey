@@ -1,46 +1,44 @@
-fix(build,ukengine): align CMake with charset/engine split; macro title-case expansion
+refactor(ukengine): macro match decomposition, readability, and Doxygen comments
 
 ## Why
 
-- `ukengine/CMakeLists.txt` still referenced removed monoliths `mapping/charset.cpp` and
-  `engine/ukengine.cpp`, breaking configuration. The real sources live under
-  `mapping/charset_components/` and `engine/engine_components/`.
-- Mixed-case macro triggers (e.g. typing `Hn` for a fold key `hn`) fell through to
-  `VnCaseNoChange`, so expansions stayed lower case (`hà nội`) while all-caps triggers
-  (`HN` → `HÀ NỘI`) still worked.
+- `UkEngine::macroMatch` had grown hard to follow; boolean spans and the outer scan loop
+  needed clearer names and smaller units.
+- Project convention (aligned with `mactab.cpp` and related TUs) uses Doxygen `@brief`,
+  `@param` / `@return`, and numbered **Progression** blocks for non-trivial functions.
 
 ## What changed
 
-### Build (`ukengine/CMakeLists.txt`)
+### `ukengine/engine/engine_components/macro.cpp`
 
-- Replace `mapping/charset.cpp` with the nine `mapping/charset_components/*.cpp` translation units.
-- Replace `engine/ukengine.cpp` with all `engine/engine_components/*.cpp`,
-  `table_components/*.cpp`, and `engine/unikey.cpp`.
-- Add `target_include_directories` entries for `mapping/` and `engine/` so includes like
-  `charset_components/charset_internal.h` and `engine_components/engine_internal.h` resolve.
+- Split macro matching into focused helpers: `macroMatchPreSkip`, `macroMatchScanForHit`,
+  `macroMatchBuildExpansionStdVn`, `macroMatchFlushOutput`, plus `macroMatchWordInfoToStdKey`,
+  `macroMatchMacroKeyFitsEngine`, `macroMatchRewindToWordBoundary`,
+  `macroMatchBuildFoldLookupKey`, `macroMatchLookupAtSpan`.
+- Anonymous-namespace helpers for casing and length (`classifyMacroKeyCase`,
+  `applyMacroCaseToBuffer`, title-casing after ASCII space, etc.).
+- Use descriptive locals (e.g. `nextCandidateStartIndex`, `wordSpanStartIndex`,
+  `shiftIsDown`, `roomLeftInOutBuffer`).
+- Outer scan loop semantics preserved: after each failed attempt, advance
+  `nextCandidateStartIndex = wordSpanStartIndex - 1` (matches original post-rewind `i--`).
+- **`@file`** TU overview with high-level **Progression** for the macro pipeline; each
+  function documented with **Progression** steps.
+- Doc correction: clarify `wordSpanStartIndex == -1` (suffix key uses `lookup(key+1)`;
+  `key[0]` not filled from buffer).
 
-### Macros (`ukengine/engine/engine_components/macro.cpp`)
+### `include/ukengine/engine/ukengine.h`
 
-- Add `VnCaseTitle`: when the trigger starts with an uppercase Vietnamese letter and any
-  following key is lowercase, normalize expansion to lower then capitalize the first letter
-  of each ASCII-space–delimited word (e.g. `hà nội` → `Hà Nội` for trigger `Hn`).
-- Keep `VnCaseAllCapital` / `VnCaseAllSmall` behavior for uniform triggers.
-
-### Documentation (`TECHNICAL_NOTE.md`)
-
-- Document charset and engine breakup, CMake source list, and include-path rationale (§11).
-- Fix stray typo in table of contents; extend TOC for §11.1.x; Vietnamese summary tweak for
-  `engine_components/`.
+- Declare private macro helpers with `@brief` (and **Progression** on `macroMatch`) so the
+  header matches the implementation split.
 
 ## Files touched
 
-- `ukengine/CMakeLists.txt`
 - `ukengine/engine/engine_components/macro.cpp`
-- `TECHNICAL_NOTE.md`
+- `include/ukengine/engine/ukengine.h`
 - `commit.txt`
 
 ## Verify
 
 ```bash
-cmake -S . -B build && cmake --build build -j$(nproc)
+cmake --build build -j$(nproc) && ctest --output-on-failure -R ukengine
 ```
