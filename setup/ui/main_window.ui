@@ -38,35 +38,35 @@
     <data>
       <row>
         <col id="0">unicode</col>
-        <col id="1">Unicode</col>
+        <col id="1" translatable="yes">Unicode</col>
       </row>
       <row>
         <col id="0">tcvn3</col>
-        <col id="1">TCVN3</col>
+        <col id="1" translatable="yes">TCVN3</col>
       </row>
       <row>
         <col id="0">vni-win</col>
-        <col id="1">VNI Win</col>
+        <col id="1" translatable="yes">VNI Win</col>
       </row>
       <row>
         <col id="0">viqr</col>
-        <col id="1">VIQR</col>
+        <col id="1" translatable="yes">VIQR</col>
       </row>
       <row>
         <col id="0">bk-hcm2</col>
-        <col id="1">BK HCM 2</col>
+        <col id="1" translatable="yes">BK HCM 2</col>
       </row>
       <row>
         <col id="0">cstr</col>
-        <col id="1">CString</col>
+        <col id="1" translatable="yes">CString</col>
       </row>
       <row>
         <col id="0">ncr-dec</col>
-        <col id="1">NCR Decimal</col>
+        <col id="1" translatable="yes">NCR Decimal</col>
       </row>
       <row>
         <col id="0">ncr-hex</col>
-        <col id="1">NCR Hex</col>
+        <col id="1" translatable="yes">NCR Hex</col>
       </row>
     </data>
   </object>

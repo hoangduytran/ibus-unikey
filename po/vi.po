@@ -7,9 +7,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: ibus-unikey 0.6.1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-17 21:19+0700\n"
-"PO-Revision-Date: 2018-08-17 21:22+0700\n"
+"Report-Msgid-Bugs-To: https://github.com/vn-input/ibus-unikey/issues\n"
+"POT-Creation-Date: 2026-05-05 01:23+0100\n"
+"PO-Revision-Date: 2026-05-05 12:00+0000\n"
 "Last-Translator: Lê Quốc Tuấn <mr.lequoctuan@gmail.com>\n"
 "Language-Team: Vietnamese\n"
 "Language: vi_VN\n"
@@ -20,103 +20,125 @@ msgstr ""
 "X-Poedit-SourceCharset: utf-8\n"
 "X-Generator: Poedit 1.8.7.1\n"
 
-#: setup/signal_handlers.cpp:16
-msgid "(replace text)"
-msgstr "(chuỗi thay thế)"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:22
+msgid "(no details)"
+msgstr "(không có chi tiết)"
 
-#: setup/ibus-unikey.ui:410
-msgid "<b>Input/Output</b>"
-msgstr "<b>Nhập/Xuất</b>"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:65
+msgid "Replace"
+msgstr "Chuỗi gõ tắt"
 
-#: setup/ibus-unikey.ui:573
-msgid "<b>Options</b>"
-msgstr "<b>Tùy chọn</b>"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:66
+msgid "With"
+msgstr "Thay thế bằng"
 
-#: setup/ibus-unikey.ui:489
-msgid "Allow type with more _freedom"
-msgstr "Cho phép bỏ dấu _tự do"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:76
+msgid "Add macro"
+msgstr "Thêm gõ tắt"
 
-#. auto restore property
-#: src/engine.cpp:336 setup/ibus-unikey.ui:453
-msgid "Auto restore non Vietnamese word"
-msgstr "Tự động trả phím khi không phải tiếng Việt"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:76
+msgid "Edit macro"
+msgstr "Sửa gõ tắt"
 
-#. macroEnabled property
-#: src/engine.cpp:351
-msgid "Enable Macro"
-msgstr "Bật gõ tắt"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:77
+msgid "_Close"
+msgstr "_Đóng"
 
-#: setup/ibus-unikey.ui:511
-msgid "Enable _macro"
-msgstr "Bật _gõ tắt"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:77
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:116
+msgid "_Save"
+msgstr "_Lưu"
 
-#: setup/ibus-unikey.ui:435
-msgid "Enable _spell check"
-msgstr "Bật kiểm tra _chính tả"
-
-#. spellcheck property
-#: src/engine.cpp:321
-msgid "Enable spell check"
-msgstr "Bật kiểm tra chính tả"
-
-#: setup/signal_handlers.cpp:286
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:114
 msgid "Export macro"
 msgstr "Xuất bảng gõ tắt"
 
-#: setup/ibus-unikey.ui:15
-msgid "Extend Telex"
-msgstr "Telex mở rộng"
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:115
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:126
+msgid "_Cancel"
+msgstr "_Hủy"
 
-#: setup/signal_handlers.cpp:249
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:125
 msgid "Import macro"
 msgstr "Nhập bảng gõ tắt"
 
-#: setup/ibus-unikey.ui:396
-msgid "Input method:"
-msgstr "Kiểu gõ: "
+#: setup/controller/setup_controller_components/setup_controller_helpers.cpp:127
+msgid "_Open"
+msgstr "_Mở"
 
-#: setup/ibus-unikey.ui:43
-msgid "Macro - ibus-unikey"
-msgstr "Bảng gõ tắt - ibus-unikey"
+#: setup/controller/setup_controller_components/setup_controller_macro_editor.cpp:125
+msgid "Clear all macro items?"
+msgstr "Xóa hết các mục gõ tắt?"
 
-#. more setting property
-#: src/engine.cpp:366
+#: setup/controller/setup_controller_components/setup_controller_macro_io.cpp:109
+msgid "Not all macros could be saved. The macro file was not written."
+msgstr "Không lưu được hết gõ tắt. Tệp gõ tắt không được ghi."
+
+#: setup/controller/setup_controller_components/setup_controller_macro_io.cpp:129
+msgid "Could not write the macro file."
+msgstr "Không ghi được tệp gõ tắt."
+
+#: setup/controller/setup_controller_components/setup_controller_macro_io.cpp:342
+msgid "The macro file could not be loaded."
+msgstr "Không tải được tệp gõ tắt."
+
+#: setup/controller/setup_controller_components/setup_controller_macro_io.cpp:426
+msgid "Not all macros could be written to the export file."
+msgstr "Không ghi được hết gõ tắt vào tệp xuất."
+
+#: setup/controller/setup_controller_components/setup_controller_macro_io.cpp:435
+msgid "Could not write the export file."
+msgstr "Không ghi được tệp xuất."
+
+#: setup/macro_file_io.cpp:111
+msgid "UniKey macro text"
+msgstr "Văn bản gõ tắt UniKey"
+
+#: setup/macro_file_io.cpp:119
+msgid "JSON macros"
+msgstr "Gõ tắt JSON"
+
+#: setup/macro_file_io.cpp:126
+msgid "YAML macros"
+msgstr "Gõ tắt YAML"
+
+#: setup/macro_file_io.cpp:134
+msgid "macOS plist (text replacements)"
+msgstr "plist macOS (thay thế văn bản)"
+
+#: setup/macro_file_io.cpp:141
+msgid "CSV macros"
+msgstr "Gõ tắt CSV"
+
+#: setup/macro_file_io.cpp:148
+msgid "TSV macros"
+msgstr "Gõ tắt TSV"
+
+#: setup/macro_handler_text.cpp:54
+msgid "Text macro import failed"
+msgstr "Nhập gõ tắt dạng văn bản thất bại"
+
+#: setup/macro_handler_text.cpp:82
+msgid "Text macro export failed"
+msgstr "Xuất gõ tắt dạng văn bản thất bại"
+
+#: src/engine.cpp:442
+msgid "Enable spell check"
+msgstr "Bật kiểm tra chính tả"
+
+#: src/engine.cpp:456 setup/ui/main_window.ui:218
+msgid "Auto restore non Vietnamese word"
+msgstr "Tự động trả phím khi không phải tiếng Việt"
+
+#: src/engine.cpp:470
+msgid "Enable Macro"
+msgstr "Bật gõ tắt"
+
+#: src/engine.cpp:484
 msgid "More settings..."
 msgstr "Thêm tùy chọn..."
 
-#: setup/ibus-unikey.ui:342
-msgid "Output charset: "
-msgstr "Bảng mã: "
-
-#: setup/ibus-unikey.ui:144
-msgid "Replace with"
-msgstr "Thay thế bởi"
-
-#: setup/ibus-unikey.ui:310
-msgid "Settings - ibus-unikey"
-msgstr "Cấu hình - ibus-unikey"
-
-#: setup/ibus-unikey.ui:23
-msgid "Simple Telex"
-msgstr "Telex đơn giản"
-
-#: setup/ibus-unikey.ui:27
-msgid "Simple Telex 2"
-msgstr "Telex đơn giản 2"
-
-#: setup/ibus-unikey.ui:551
-msgid "Standalone \"_W\" as \"Ư\" (Telex only)"
-msgstr "\"_W\" đứng riêng thành \"Ư\" (chỉ Telex)"
-
-#: setup/ibus-unikey.ui:471
-msgid "Use oà, _uý (instead of òa, úy)"
-msgstr "Dùng oà, _uý (thay vì òa, úy)"
-
-#: setup/ibus-unikey.ui:19
-msgid "VNI"
-msgstr "VNI"
-
-#: src/main.cpp:119
+#: src/engine/engine_app.cpp:189
 msgid ""
 "Vietnamese Input Method Engine for IBus using Unikey Engine\n"
 "Usage:\n"
@@ -126,7 +148,7 @@ msgid ""
 "  - And 7 output charsets: Unicode (UTF-8), TCVN3, VNI Win, VIQR, CString, "
 "NCR Decimal and NCR Hex.\n"
 "  - Use <Shift>+<Space> or <Shift>+<Shift> to restore keystrokes.\n"
-"  - Use <Control> to commit a word."
+"  - Use <Control> to commit a word.\n"
 msgstr ""
 "Bộ gõ tiếng Việt cho IBus dùng Unikey Engine\n"
 "Sử dụng:\n"
@@ -136,65 +158,150 @@ msgstr ""
 " - Và 7 bảng mã: Unicode (UTF-8), TCVN3, VNI Win, VIQR, CString, NCR Decimal "
 "và NCR Hex.\n"
 " - Dùng <Shift>+<Space> hoặc <Shift>+<Shift> để khôi phục phím.\n"
-" - Dùng <Control> để xác nhận từ (kết thúc từ)."
+" - Dùng <Control> để xác nhận từ (kết thúc từ).\n"
 
-#: setup/ibus-unikey.ui:127
-msgid "Word"
-msgstr "Từ"
+#: setup/ui/main_window.ui:15
+msgid "Extend Telex"
+msgstr "Telex mở rộng"
 
-#: setup/signal_handlers.cpp:252 setup/signal_handlers.cpp:289
-msgid "_Cancel"
-msgstr "_Cancel"
+#: setup/ui/main_window.ui:19
+msgid "VNI"
+msgstr "VNI"
 
-#: setup/ibus-unikey.ui:529
+#: setup/ui/main_window.ui:23
+msgid "Simple Telex"
+msgstr "Telex đơn giản"
+
+#: setup/ui/main_window.ui:27
+msgid "Simple Telex 2"
+msgstr "Telex đơn giản 2"
+
+#: setup/ui/main_window.ui:41
+msgid "Unicode"
+msgstr "Unicode"
+
+#: setup/ui/main_window.ui:45
+msgid "TCVN3"
+msgstr "TCVN3"
+
+#: setup/ui/main_window.ui:49
+msgid "VNI Win"
+msgstr "VNI Win"
+
+#: setup/ui/main_window.ui:53
+msgid "VIQR"
+msgstr "VIQR"
+
+#: setup/ui/main_window.ui:57
+msgid "BK HCM 2"
+msgstr "BK HCM 2"
+
+#: setup/ui/main_window.ui:61
+msgid "CString"
+msgstr "CString"
+
+#: setup/ui/main_window.ui:65
+msgid "NCR Decimal"
+msgstr "NCR Decimal"
+
+#: setup/ui/main_window.ui:69
+msgid "NCR Hex"
+msgstr "NCR Hex"
+
+#: setup/ui/main_window.ui:75
+msgid "Settings - ibus-unikey"
+msgstr "Cấu hình - ibus-unikey"
+
+#: setup/ui/main_window.ui:107
+msgid "Output charset: "
+msgstr "Bảng mã: "
+
+#: setup/ui/main_window.ui:161
+msgid "Input method:"
+msgstr "Kiểu gõ: "
+
+#: setup/ui/main_window.ui:175
+msgid "<b>Input/Output</b>"
+msgstr "<b>Nhập/Xuất</b>"
+
+#: setup/ui/main_window.ui:200
+msgid "Enable _spell check"
+msgstr "Bật kiểm tra _chính tả"
+
+#: setup/ui/main_window.ui:236
+msgid "Use oà, _uý (instead of òa, úy)"
+msgstr "Dùng oà, _uý (thay vì òa, úy)"
+
+#: setup/ui/main_window.ui:254
+msgid "Allow type with more _freedom"
+msgstr "Cho phép bỏ dấu _tự do"
+
+#: setup/ui/main_window.ui:276
+msgid "Enable _macro"
+msgstr "Bật _gõ tắt"
+
+#: setup/ui/main_window.ui:294
 msgid "_Edit macro"
 msgstr "_Sửa bảng gõ tắt"
 
-#: setup/ibus-unikey.ui:232
-msgid "_Export..."
-msgstr "_Xuất..."
+#: setup/ui/main_window.ui:316
+msgid "Standalone \"_W\" as \"Ư\" (Telex only)"
+msgstr "\"_W\" đứng riêng thành \"Ư\" (chỉ Telex)"
 
-#: setup/ibus-unikey.ui:217
+#: setup/ui/main_window.ui:338
+msgid "<b>Options</b>"
+msgstr "<b>Tùy chọn</b>"
+
+#: setup/ui/macro_dialog.ui:19
+msgid "Macro - ibus-unikey"
+msgstr "Bảng gõ tắt - ibus-unikey"
+
+#: setup/ui/macro_dialog.ui:93
+msgid "Search macros (Enter to search, Esc to clear)"
+msgstr "Tìm gõ tắt (Enter để tìm, Esc để xóa)"
+
+#: setup/ui/macro_dialog.ui:120
+msgid "Word"
+msgstr "Từ"
+
+#: setup/ui/macro_dialog.ui:136
+msgid "Replace with"
+msgstr "Thay thế bởi"
+
+#: setup/ui/macro_dialog.ui:168
+msgid "Add"
+msgstr "Thêm"
+
+#: setup/ui/macro_dialog.ui:184
+msgid "Edit"
+msgstr "Sửa"
+
+#: setup/ui/macro_dialog.ui:200
+msgid "Delete"
+msgstr "Xóa"
+
+#: setup/ui/macro_dialog.ui:216
+msgid "Clear"
+msgstr "Xóa hết"
+
+#: setup/ui/macro_dialog.ui:232
+msgid "Return"
+msgstr "Quay lại"
+
+#: setup/ui/macro_dialog.ui:245
 msgid "_Import..."
 msgstr "_Nhập..."
 
-#: setup/signal_handlers.cpp:253
-msgid "_Open"
-msgstr "_Open"
+#: setup/ui/macro_dialog.ui:260
+msgid "_Export..."
+msgstr "_Xuất..."
 
-#: setup/signal_handlers.cpp:290
-msgid "_Save"
-msgstr "_Save"
-
-#~ msgid "Use _macro"
-#~ msgstr "Sử dụng gõ tắt"
+#: setup/macro_utils.h:19
+msgid "(replace text)"
+msgstr "(chuỗi thay thế)"
 
 #~ msgid "Auto _restore keys with invalid words"
 #~ msgstr "Tự động _trả phím khi gõ từ không hợp lệ"
-
-#~ msgid "BK HCM 2"
-#~ msgstr "BK HCM 2"
-
-#~ msgid "CString"
-#~ msgstr "CString"
-
-#~ msgid "NCR Decimal"
-#~ msgstr "NCR Decimal"
-
-#~ msgid "NCR Hex"
-#~ msgstr "NCR Hex"
-
-#~ msgid "TCVN3"
-#~ msgstr "TCVN3"
-
-#~ msgid "Unicode"
-#~ msgstr "Unicode"
-
-#~ msgid "VIQR"
-#~ msgstr "VIQR"
-
-#~ msgid "VNI Win"
-#~ msgstr "VNI Win"
 
 #~ msgid "If enable, you can decrease mistake when typing"
 #~ msgstr "Nếu bật, bạn có thể giảm lỗi chính tả khi gõ"
@@ -247,6 +354,3 @@ msgstr "_Save"
 
 #~ msgid "Macro table definition"
 #~ msgstr "Định nghĩa bảng gõ tắt"
-
-#~ msgid "Delete _all"
-#~ msgstr "Xóa _hết"

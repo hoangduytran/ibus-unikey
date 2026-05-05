@@ -15,10 +15,14 @@
 #include <cstring>
 #include <memory>
 
+#include <libintl.h>
+
 #include <setup/macro_format_handler_registry.h>
 #include <setup/macro_interchange_common.h>
 #include <ukengine/mapping/mactab.h>
 #include <ukengine/mapping/text_macro_format.h>
+
+#define _(str) gettext(str)
 
 MacroInterchangeForcedFormat TextMacroHandler::forced_format() const {
   return MACRO_INTERCHANGE_FORMAT_TEXT_UNIKEY;
@@ -47,7 +51,7 @@ gboolean TextMacroHandler::import_from_path(const gchar *path_utf8, CMacroTable 
   if (text_format.importFromPath(path_utf8, *table, &file_version) != 1) {
     const char *detail_message = table->getLastErrorMessage();
     macro_interchange::fail(err, (detail_message && detail_message[0]) ? detail_message
-                                                                        : "Text macro import failed");
+                                                                        : _("Text macro import failed"));
     return FALSE;
   }
   if (stats) {
@@ -75,7 +79,7 @@ gboolean TextMacroHandler::export_to_path(const gchar *path_utf8, CMacroTable *t
   if (text_format.exportToPath(path_utf8, *table) != 1) {
     const char *detail_message = table->getLastErrorMessage();
     macro_interchange::fail(err, (detail_message && detail_message[0]) ? detail_message
-                                                                       : "Text macro export failed");
+                                                                       : _("Text macro export failed"));
     return FALSE;
   }
   return TRUE;
