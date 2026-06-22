@@ -5,6 +5,7 @@ add_subdirectory(config)
 
 add_executable(ibus-engine-unikey
     main.cpp
+    engine/engine_app.cpp
     engine.cpp
 )
 target_link_libraries(ibus-engine-unikey
@@ -13,6 +14,7 @@ target_link_libraries(ibus-engine-unikey
     ${IBUS_LIBRARIES}
 )
 target_include_directories(ibus-engine-unikey PUBLIC ${IBUS_INCLUDE_DIRS})
+target_include_directories(ibus-engine-unikey PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 configure_file(unikey.xml.in unikey.xml)
 
